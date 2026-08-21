@@ -1,0 +1,20 @@
+{
+  "name": "出門玩｜Pocket Play",
+  "short_name": "出門玩",
+  "description": "離線也能使用的骰子、幸運輪與聚會小工具。",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b0c10",
+  "theme_color": "#0b0c10",
+  "lang": "zh-Hant",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
