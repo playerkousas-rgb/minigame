@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b0c10" />
+    <meta name="description" content="出門玩：離線也能使用的骰子、幸運輪與聚會小工具。" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./styles.css" />
+    <title>出門玩｜離線遊戲工具箱</title>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="#top" aria-label="出門玩首頁">
+          <span class="brand-mark" aria-hidden="true">✦</span>
+          <span class="brand-copy">
+            <span class="brand-overline">POCKET PLAY</span>
+            <strong>出門玩</strong>
+          </span>
+        </a>
+        <div class="top-actions">
+          <span class="status-badge" id="connectionBadge">
+            <span class="status-dot" aria-hidden="true"></span>
+            <span id="connectionText">離線可用</span>
+          </span>
+          <button class="icon-button" id="clearDataButton" type="button" aria-label="清除本機資料" title="清除本機資料">
+            <span aria-hidden="true">↺</span>
+          </button>
+        </div>
+      </header>
+
+      <main id="top">
+        <section class="welcome-block" aria-labelledby="page-title">
+          <div class="welcome-copy">
+            <p class="eyebrow">NO SIGNAL. NO PROBLEM.</p>
+            <h1 id="page-title">把下一局的<br /><em>好玩</em>帶在身上。</h1>
+            <p class="welcome-description">骰子、幸運輪，還有幾個不用網路就能開玩的隨手工具。揪到人就能開始。</p>
+          </div>
+          <div class="welcome-orbit" aria-hidden="true">
+            <span class="orbit-ring orbit-ring-one"></span>
+            <span class="orbit-ring orbit-ring-two"></span>
+            <span class="orbit-dot orbit-dot-one"></span>
+            <span class="orbit-dot orbit-dot-two"></span>
+            <span class="orbit-die">⚄</span>
+          </div>
+        </section>
+
+        <div class="promise-row" aria-label="產品特色">
+          <div class="promise-item"><span class="promise-icon">⌁</span><span>離線可玩</span></div>
+          <div class="promise-item"><span class="promise-icon">☷</span><span>資料留在手機</span></div>
+          <div class="promise-item"><span class="promise-icon">↗</span><span>適合多人</span></div>
+        </div>
+
+        <nav class="mode-tabs" role="tablist" aria-label="遊戲工具分類">
+          <button class="mode-tab is-active" id="tab-dice" type="button" role="tab" aria-selected="true" aria-controls="view-dice" data-view="dice">
+            <span class="tab-number">01</span>
+            <span>骰子</span>
+          </button>
+          <button class="mode-tab" id="tab-wheel" type="button" role="tab" aria-selected="false" aria-controls="view-wheel" data-view="wheel">
+            <span class="tab-number">02</span>
+            <span>幸運輪</span>
+          </button>
+          <button class="mode-tab" id="tab-tools" type="button" role="tab" aria-selected="false" aria-controls="view-tools" data-view="tools">
+            <span class="tab-number">03</span>
+            <span>隨手工具</span>
+          </button>
+        </nav>
+
+        <section class="app-view is-active" id="view-dice" role="tabpanel" aria-labelledby="tab-dice">
+          <div class="section-heading">
+            <div>
+              <p class="section-kicker">SHAKE TO ROLL</p>
+              <h2>大話骰 / 骰子工具</h2>
+              <p>設定好數量與面數，搖一搖才會換出下一組數字。骰面平常保持全黑，按住才偷看。</p>
+            </div>
+            <div class="round-counter" aria-live="polite">
+              <span class="counter-label">本局</span>
+              <strong id="rollStatus">01</strong>
+              <span class="counter-suffix">次搖動</span>
+            </div>
+          </div>
+
+          <div class="dice-panel panel-surface">
+            <div class="dice-controls" aria-label="骰子設定">
+              <div class="control-block">
+                <label for="diceCount">骰子數量</label>
+                <div class="stepper">
+                  <button class="stepper-button" id="diceCountDown" type="button" aria-label="減少骰子數量">−</button>
+                  <input id="diceCount" type="number" min="1" max="12" value="5" inputmode="numeric" aria-label="骰子數量" />
+                  <button class="stepper-button" id="diceCountUp" type="button" aria-label="增加骰子數量">＋</button>
+                </div>
+              </div>
+              <div class="control-block">
+                <label for="diceSides">每顆面數</label>
+                <div class="stepper sides-stepper">
+                  <button class="stepper-button" id="diceSidesDown" type="button" aria-label="減少骰子面數">−</button>
+                  <input id="diceSides" type="number" min="2" max="100" value="6" inputmode="numeric" aria-label="每顆骰子面數" />
+                  <button class="stepper-button" id="diceSidesUp" type="button" aria-label="增加骰子面數">＋</button>
+                </div>
+              </div>
+              <div class="preset-block">
+                <span class="control-label">快速選擇</span>
+                <div class="preset-buttons">
+                  <button class="preset-button is-selected" type="button" data-sides="6">D6</button>
+                  <button class="preset-button" type="button" data-sides="10">D10</button>
+                  <button class="preset-button" type="button" data-sides="20">D20</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="dice-stage" id="diceStage" tabindex="0" role="button" aria-label="按住骰子查看結果；搖動手機換骰" aria-describedby="diceInstruction">
+              <div class="dice-grid" id="diceGrid"></div>
+              <div class="press-hint" id="diceInstruction">
+                <span class="hint-lock" aria-hidden="true">▣</span>
+                <span>按住查看結果</span>
+              </div>
+            </div>
+
+            <div class="shake-row">
+              <div class="shake-message">
+                <span class="shake-icon" id="shakeIcon" aria-hidden="true">⌁</span>
+                <div>
+                  <strong id="motionStatus">搖一搖來換骰</strong>
+                  <span id="motionSubstatus">先允許動作感應，手機才會接收搖動。</span>
+                </div>
+              </div>
+              <div class="shake-actions">
+                <button class="button button-primary" id="enableMotionButton" type="button">啟用搖一搖</button>
+                <button class="button button-secondary" id="simulateShakeButton" type="button">模擬搖動</button>
+              </div>
+            </div>
+
+            <div class="dice-footnote">
+              <span class="footnote-mark">i</span>
+              <span>骰子不會因為點擊按鈕而改變；「模擬搖動」只是在沒有動作感應器的裝置上體驗用。</span>
+            </div>
+          </div>
+
+          <div class="tip-grid">
+            <article class="tip-card">
+              <span class="tip-index">01</span>
+              <h3>大話骰</h3>
+              <p>把手機放桌上，輪流搖動；按住骰面只讓自己看見數字。</p>
+            </article>
+            <article class="tip-card">
+              <span class="tip-index">02</span>
+              <h3>自訂骰子</h3>
+              <p>數量 1–12 顆、面數 2–100 面，桌遊或小遊戲都能套用。</p>
+            </article>
+            <article class="tip-card accent-tip">
+              <span class="tip-index">03</span>
+              <h3>小提示</h3>
+              <p>開啟手機靜音也沒關係，搖動時會用短震動回饋告訴你已換骰。</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="app-view" id="view-wheel" role="tabpanel" aria-labelledby="tab-wheel" hidden>
+          <div class="section-heading">
+            <div>
+              <p class="section-kicker">MAKE YOUR ODDS</p>
+              <h2>幸運輪</h2>
+              <p>把獎勵、懲罰或任何選項放進去，交給轉盤決定下一位幸運兒。</p>
+            </div>
+            <div class="round-counter wheel-counter">
+              <span class="counter-label">選項</span>
+              <strong id="wheelCount">06</strong>
+              <span class="counter-suffix">個</span>
+            </div>
+          </div>
+
+          <div class="wheel-layout">
+            <div class="wheel-panel panel-surface">
+              <div class="wheel-wrap" id="wheelWrap">
+                <div class="wheel-pointer" aria-hidden="true"><span></span></div>
+                <canvas id="wheelCanvas" width="720" height="720" aria-label="幸運輪"></canvas>
+                <div class="wheel-center" aria-hidden="true"><span>SPIN</span></div>
+              </div>
+              <div class="wheel-result" id="wheelResult" aria-live="polite">
+                <span class="result-label">準備好了嗎？</span>
+                <strong>轉一下看看</strong>
+              </div>
+              <button class="button button-primary button-large" id="spinWheelButton" type="button"><span>開始轉</span><span class="button-arrow">↗</span></button>
+            </div>
+
+            <div class="wheel-editor panel-surface">
+              <div class="editor-header">
+                <div>
+                  <p class="section-kicker">YOUR RULES</p>
+                  <h3>編輯輪盤選項</h3>
+                </div>
+                <span class="editor-count" id="wheelEditorCount">6 / 12</span>
+              </div>
+              <div class="wheel-presets" aria-label="套用輪盤範本">
+                <button class="chip-button" type="button" data-wheel-preset="party">聚會</button>
+                <button class="chip-button" type="button" data-wheel-preset="reward">獎勵</button>
+                <button class="chip-button" type="button" data-wheel-preset="penalty">懲罰</button>
+              </div>
+              <div class="add-option-row">
+                <label class="sr-only" for="newWheelOption">新增輪盤選項</label>
+                <input id="newWheelOption" type="text" maxlength="24" placeholder="輸入新選項…" autocomplete="off" />
+                <button class="button button-add" id="addWheelOptionButton" type="button" aria-label="新增選項">＋</button>
+              </div>
+              <ul class="wheel-options" id="wheelOptionsList" aria-label="目前輪盤選項"></ul>
+              <p class="editor-note"><span aria-hidden="true">⌘</span> 選項只會儲存在這部手機，不需要登入或上網。</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="app-view" id="view-tools" role="tabpanel" aria-labelledby="tab-tools" hidden>
+          <div class="section-heading">
+            <div>
+              <p class="section-kicker">OUTDOOR TOOLKIT</p>
+              <h2>外出小工具</h2>
+              <p>臨時分隊、硬幣決定、多人記分或限時挑戰，不用再翻包包找小道具。</p>
+            </div>
+            <div class="tool-count-badge"><span>04</span><small>個小工具</small></div>
+          </div>
+
+          <div class="tools-grid">
+            <article class="tool-card tool-card-picker">
+              <div class="tool-card-heading">
+                <div class="tool-symbol purple-symbol" aria-hidden="true">✦</div>
+                <div><p class="tool-card-kicker">SHUFFLE TEAMS</p><h3>隨機分隊</h3></div>
+              </div>
+              <p class="tool-description">輸入人數、名字和隊數，App 會盡量平均隨機分配。</p>
+              <div class="setup-inline-row">
+                <label for="teamPlayerCount">現有人數</label>
+                <input class="mini-number" id="teamPlayerCount" type="number" min="2" max="24" value="4" inputmode="numeric" />
+                <span class="setup-suffix">人</span>
+              </div>
+              <div class="list-heading"><span>參加者名字</span><span id="teamNameCount">4 人</span></div>
+              <div class="participant-names" id="participantNames" aria-label="參加者名字"></div>
+              <div class="setup-inline-row team-count-row">
+                <label for="teamCount">希望分成</label>
+                <input class="mini-number" id="teamCount" type="number" min="2" max="8" value="2" inputmode="numeric" />
+                <span class="setup-suffix">隊</span>
+              </div>
+              <div class="tool-action-row">
+                <button class="button button-dark" id="splitTeamsButton" type="button">開始分隊 <span>↗</span></button>
+                <span class="tool-caption" id="teamSplitStatus">平均分配</span>
+              </div>
+              <div class="team-result" id="teamResult" aria-live="polite"><span>填好名字就可以開始</span></div>
+            </article>
+
+            <article class="tool-card tool-card-coin">
+              <div class="tool-card-heading">
+                <div class="tool-symbol yellow-symbol" aria-hidden="true">◐</div>
+                <div><p class="tool-card-kicker">HEADS OR TAILS</p><h3>硬幣</h3></div>
+              </div>
+              <p class="tool-description">決定誰先來、去哪裡，或只是把選擇交給運氣。</p>
+              <div class="coin-stage" aria-hidden="true"><div class="coin" id="coin"><span class="coin-front">正</span><span class="coin-back">反</span></div></div>
+              <div class="tool-action-row coin-action-row">
+                <button class="button button-dark" id="flipCoinButton" type="button">拋硬幣 <span>↗</span></button>
+                <span class="tool-result-inline" id="coinResult" aria-live="polite">準備</span>
+              </div>
+            </article>
+
+            <article class="tool-card tool-card-score">
+              <div class="tool-card-heading">
+                <div class="tool-symbol green-symbol" aria-hidden="true">＋</div>
+                <div><p class="tool-card-kicker">KEEP SCORE</p><h3>多人計分板</h3></div>
+              </div>
+              <p class="tool-description">輸入隊伍或玩家數量，每局設定分數後加減；UNO、桌遊和比賽都能用。</p>
+              <div class="score-setup-row">
+                <label for="scoreEntryCount">隊伍／玩家</label>
+                <input class="mini-number" id="scoreEntryCount" type="number" min="2" max="12" value="4" inputmode="numeric" />
+                <label for="scoreRoundPoints">本局分數</label>
+                <input class="mini-number score-points-input" id="scoreRoundPoints" type="number" min="1" max="999" value="1" inputmode="numeric" />
+              </div>
+              <div class="list-heading score-list-heading"><span>名稱</span><span id="scoreTotalLabel">總分 0</span></div>
+              <div class="score-entries" id="scoreEntriesList" aria-label="玩家或隊伍分數"></div>
+              <div class="score-summary" id="scoreSummary" aria-live="polite">等待開始記分</div>
+              <button class="text-button" id="resetScoreButton" type="button">所有分數歸零 <span>↺</span></button>
+            </article>
+
+            <article class="tool-card tool-card-timer">
+              <div class="tool-card-heading">
+                <div class="tool-symbol blue-symbol" aria-hidden="true">◷</div>
+                <div><p class="tool-card-kicker">COUNTDOWN</p><h3>活動倒數</h3></div>
+              </div>
+              <p class="tool-description">限時挑戰、你畫我猜或懲罰時間，交給倒數提醒。</p>
+              <div class="timer-display" id="timerDisplay" aria-live="polite">01:00</div>
+              <div class="timer-presets" role="group" aria-label="倒數時間">
+                <button type="button" data-timer-seconds="30">00:30</button>
+                <button class="is-selected" type="button" data-timer-seconds="60">01:00</button>
+                <button type="button" data-timer-seconds="180">03:00</button>
+              </div>
+              <div class="timer-controls">
+                <button class="button button-dark" id="timerStartButton" type="button">開始 <span>▶</span></button>
+                <button class="button button-quiet" id="timerResetButton" type="button">重設</button>
+              </div>
+            </article>
+          </div>
+        </section>
+      </main>
+
+      <footer class="app-footer">
+        <span>出門玩 · Pocket Play</span>
+        <span>不靠網路，也能玩得很盡興。</span>
+      </footer>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <div class="modal-backdrop" id="clearDataModal" hidden>
+      <div class="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="clearDataTitle">
+        <span class="modal-icon" aria-hidden="true">↺</span>
+        <h2 id="clearDataTitle">清除自訂內容？</h2>
+        <p>輪盤、分隊名單與計分板資料會回到預設值。這只會清除本機資料。</p>
+        <div class="modal-actions"><button class="button button-quiet" id="cancelClearButton" type="button">先不要</button><button class="button button-danger" id="confirmClearButton" type="button">清除資料</button></div>
+      </div>
+    </div>
+
+    <script src="./app.js" defer></script>
+  </body>
+</html>
