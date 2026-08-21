@@ -44,12 +44,11 @@
     },
     score: {
       count: 4,
-      roundPoints: 1,
       entries: [
-        { name: '玩家 1', score: 0 },
-        { name: '玩家 2', score: 0 },
-        { name: '玩家 3', score: 0 },
-        { name: '玩家 4', score: 0 },
+        { name: '玩家 1', score: 0, round: 0 },
+        { name: '玩家 2', score: 0, round: 0 },
+        { name: '玩家 3', score: 0, round: 0 },
+        { name: '玩家 4', score: 0, round: 0 },
       ],
     },
     timer: {
@@ -104,6 +103,7 @@
         return {
           name: validString(entry.name, `玩家 ${index + 1}`).trim().slice(0, 14) || `玩家 ${index + 1}`,
           score: clamp(Math.floor(Number(entry.score) || 0), -999999, 999999),
+          round: clamp(Math.floor(Number(entry.round) || 0), 0, 999999),
         };
       });
 
@@ -118,7 +118,6 @@
         teamShuffle: { peopleCount, teamCount, names, lastTeams },
         score: {
           count: scoreCount,
-          roundPoints: clamp(Math.floor(Number(savedScore.roundPoints) || 1), 1, 999),
           entries: scoreEntries,
         },
         timer: {
@@ -724,7 +723,6 @@
 
   // Multi-player scoreboard
   const scoreEntryCountInput = $('#scoreEntryCount');
-  const scoreRoundPointsInput = $('#scoreRoundPoints');
   const scoreEntriesList = $('#scoreEntriesList');
   const scoreSummary = $('#scoreSummary');
 
@@ -736,10 +734,10 @@
       return {
         name: validString(entry.name, `玩家 ${index + 1}`).slice(0, 14) || `玩家 ${index + 1}`,
         score: clamp(Math.floor(Number(entry.score) || 0), -999999, 999999),
+        round: clamp(Math.floor(Number(entry.round) || 0), 0, 999999),
       };
     });
     scoreEntryCountInput.value = count;
-    scoreRoundPointsInput.value = state.score.roundPoints;
     scoreEntriesList.replaceChildren();
 
     state.score.entries.forEach((entry, index) => {
@@ -761,19 +759,32 @@
       const value = document.createElement('strong');
       value.className = 'score-row-value';
       value.textContent = String(entry.score);
+      const roundInput = document.createElement('input');
+      roundInput.className = 'score-round-input';
+      roundInput.type = 'number';
+      roundInput.min = '0';
+      roundInput.max = '999999';
+      roundInput.placeholder = '本局';
+      roundInput.inputMode = 'numeric';
+      roundInput.value = entry.round ? String(entry.round) : '';
+      roundInput.setAttribute('aria-label', `${entry.name} 本局分數`);
+      roundInput.addEventListener('input', () => {
+        state.score.entries[index].round = clamp(Math.floor(Number(roundInput.value) || 0), 0, 999999);
+        saveState();
+      });
       const minus = document.createElement('button');
       minus.className = 'score-change-button';
       minus.type = 'button';
       minus.textContent = '−';
-      minus.setAttribute('aria-label', `${entry.name} 減 ${state.score.roundPoints} 分`);
+      minus.setAttribute('aria-label', `${entry.name} 扣除本局分數`);
       minus.addEventListener('click', () => changeScore(index, -1));
       const plus = document.createElement('button');
       plus.className = 'score-change-button score-plus';
       plus.type = 'button';
       plus.textContent = '＋';
-      plus.setAttribute('aria-label', `${entry.name} 加 ${state.score.roundPoints} 分`);
+      plus.setAttribute('aria-label', `${entry.name} 加上本局分數`);
       plus.addEventListener('click', () => changeScore(index, 1));
-      row.append(number, name, value, minus, plus);
+      row.append(number, name, value, roundInput, minus, plus);
       scoreEntriesList.appendChild(row);
     });
 
@@ -783,9 +794,14 @@
   }
 
   function changeScore(index, direction) {
-    const points = clamp(Math.floor(Number(scoreRoundPointsInput.value) || state.score.roundPoints), 1, 999);
-    state.score.roundPoints = points;
-    state.score.entries[index].score = clamp(state.score.entries[index].score + (points * direction), -999999, 999999);
+    const entry = state.score.entries[index];
+    const points = clamp(Math.floor(Number(entry.round) || 0), 0, 999999);
+    if (!points) {
+      showToast('先輸入這一行的本局分數');
+      return;
+    }
+    entry.score = clamp(entry.score + (points * direction), -999999, 999999);
+    entry.round = 0;
     saveState();
     renderScore();
     vibrate(18);
@@ -794,21 +810,15 @@
   function syncScoreEntryCount() {
     const count = clamp(Math.floor(Number(scoreEntryCountInput.value) || state.score.count), 2, 12);
     state.score.count = count;
-    state.score.entries = Array.from({ length: count }, (_, index) => state.score.entries[index] || ({ name: `玩家 ${index + 1}`, score: 0 }));
+    state.score.entries = Array.from({ length: count }, (_, index) => state.score.entries[index] || ({ name: `玩家 ${index + 1}`, score: 0, round: 0 }));
     scoreEntryCountInput.value = count;
     saveState();
     renderScore();
   }
 
   scoreEntryCountInput.addEventListener('change', syncScoreEntryCount);
-  scoreRoundPointsInput.addEventListener('change', () => {
-    state.score.roundPoints = clamp(Math.floor(Number(scoreRoundPointsInput.value) || 1), 1, 999);
-    scoreRoundPointsInput.value = state.score.roundPoints;
-    saveState();
-    renderScore();
-  });
   $('#resetScoreButton').addEventListener('click', () => {
-    state.score.entries.forEach((entry) => { entry.score = 0; });
+    state.score.entries.forEach((entry) => { entry.score = 0; entry.round = 0; });
     saveState();
     renderScore();
     showToast('所有分數已歸零');

@@ -263,14 +263,13 @@
                 <div class="tool-symbol green-symbol" aria-hidden="true">＋</div>
                 <div><p class="tool-card-kicker">KEEP SCORE</p><h3>多人計分板</h3></div>
               </div>
-              <p class="tool-description">輸入隊伍或玩家數量，每局設定分數後加減；UNO、桌遊和比賽都能用。</p>
+              <p class="tool-description">輸入隊伍或玩家數量，每一行填寫該玩家本局分數，再按加分或扣分；UNO、桌遊和比賽都能用。</p>
               <div class="score-setup-row">
                 <label for="scoreEntryCount">隊伍／玩家</label>
                 <input class="mini-number" id="scoreEntryCount" type="number" min="2" max="12" value="4" inputmode="numeric" />
-                <label for="scoreRoundPoints">本局分數</label>
-                <input class="mini-number score-points-input" id="scoreRoundPoints" type="number" min="1" max="999" value="1" inputmode="numeric" />
+                <span class="score-input-note">每行輸入本局分數</span>
               </div>
-              <div class="list-heading score-list-heading"><span>名稱</span><span id="scoreTotalLabel">總分 0</span></div>
+              <div class="list-heading score-list-heading"><span>名稱</span><span id="scoreTotalLabel">目前總分 · 本局</span></div>
               <div class="score-entries" id="scoreEntriesList" aria-label="玩家或隊伍分數"></div>
               <div class="score-summary" id="scoreSummary" aria-live="polite">等待開始記分</div>
               <button class="text-button" id="resetScoreButton" type="button">所有分數歸零 <span>↺</span></button>

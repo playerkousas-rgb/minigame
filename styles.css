@@ -1292,6 +1292,12 @@ textarea:focus-visible,
   font-weight: 750;
 }
 
+.score-input-note {
+  margin-left: 3px;
+  color: #6f727b;
+  font-size: 10px;
+}
+
 .setup-inline-row label:nth-of-type(2),
 .score-setup-row label:nth-of-type(2) {
   margin-left: 4px;
@@ -1651,7 +1657,7 @@ textarea:focus-visible,
 
 .score-row {
   display: grid;
-  grid-template-columns: 23px minmax(0, 1fr) 45px 27px 27px;
+  grid-template-columns: 23px minmax(0, 1fr) 42px 54px 27px 27px;
   align-items: center;
   gap: 5px;
   min-height: 37px;
@@ -1686,6 +1692,37 @@ textarea:focus-visible,
   font-size: 14px;
   text-align: right;
   text-overflow: ellipsis;
+}
+
+.score-round-input {
+  width: 54px;
+  height: 27px;
+  padding: 0 3px;
+  color: var(--blue);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  font-weight: 850;
+  text-align: center;
+  border: 1px solid rgba(112, 198, 255, 0.28);
+  border-radius: 7px;
+  outline: 0;
+  background: rgba(112, 198, 255, 0.06);
+  -moz-appearance: textfield;
+}
+
+.score-round-input::-webkit-outer-spin-button,
+.score-round-input::-webkit-inner-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+}
+
+.score-round-input::placeholder {
+  color: #657c8a;
+}
+
+.score-round-input:focus {
+  border-color: var(--blue);
+  background: rgba(112, 198, 255, 0.12);
 }
 
 .score-change-button {
