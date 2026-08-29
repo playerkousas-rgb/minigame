@@ -2995,6 +2995,23 @@ textarea:focus-visible,
     font-size: 10px;
   }
 
+  .eyebrow,
+  .section-kicker,
+  .sync-heading-copy .tool-card-kicker {
+    font-size: 11px;
+  }
+
+  .list-heading,
+  .score-input-note,
+  .tool-caption {
+    font-size: 12px;
+  }
+
+  .tool-result-inline,
+  .timer-presets button {
+    font-size: 12px;
+  }
+
   .score-row {
     grid-template-columns: 24px minmax(0, 1fr) 46px 56px 38px 38px;
     gap: 6px;
