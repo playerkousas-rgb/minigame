@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pocket-play-v2';
+const CACHE_NAME = 'pocket-play-v3';
 const APP_SHELL = [
   './',
   './index.html',
@@ -6,6 +6,8 @@ const APP_SHELL = [
   './app.js',
   './manifest.webmanifest',
   './icon.svg',
+  './vendor/qrcode.js',
+  './vendor/peerjs.min.js',
 ];
 
 self.addEventListener('install', (event) => {

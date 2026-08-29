@@ -122,7 +122,7 @@
         },
         timer: {
           preset: [30, 60, 180].includes(Number(saved.timer?.preset)) ? Number(saved.timer.preset) : initial.timer.preset,
-          remaining: clamp(Math.floor(Number(saved.timer?.remaining) || Number(saved.timer?.preset) || initial.timer.remaining), 0, 3600),
+          remaining: clamp(Number.isFinite(Number(saved.timer?.remaining)) ? Math.floor(Number(saved.timer.remaining)) : (Number(saved.timer?.preset) || initial.timer.remaining), 0, 3600),
         },
       };
     } catch (error) {
@@ -825,6 +825,416 @@
   });
   renderScore();
 
+  // Multi-device scoreboard (host + clients via PeerJS, with QR codes)
+  const PEER_HOST_PREFIX = 'pocket-play-';
+  const scoreSync = {
+    mode: 'local',      // 'local' | 'host' | 'client'
+    code: '',
+    peer: null,
+    conns: [],          // host: [{ conn, slot }]
+    conn: null,         // client: single connection
+    mySlot: 0,
+    draftRound: '',
+    ready: false,
+  };
+  const scoreOffline = $('#scoreOffline');
+  const scoreSyncPanel = $('#scoreSync');
+  const syncBadge = $('#syncBadge');
+  const syncIdle = $('#syncIdle');
+  const syncStatus = $('#syncStatus');
+  const qrGrid = $('#qrGrid');
+  const syncLive = $('#syncLive');
+  const syncMy = $('#syncMy');
+  const syncBoard = $('#syncBoard');
+  const syncFootnote = $('#syncFootnote');
+  const endRoomButton = $('#endRoomButton');
+
+  function makeRoomCode(length = 6) {
+    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+    let result = '';
+    for (let index = 0; index < length; index += 1) result += chars[randomInt(chars.length)];
+    return result;
+  }
+
+  function makeClientId(code, slot) {
+    return `${PEER_HOST_PREFIX}${code.toLowerCase()}-${slot}-${randomInt(100000)}${Date.now() % 1000}`;
+  }
+
+  function setScoreMode(mode) {
+    scoreSync.mode = mode;
+    const connected = mode !== 'local';
+    scoreOffline.hidden = connected;
+    scoreSyncPanel.hidden = false;
+    syncIdle.hidden = connected;
+    endRoomButton.hidden = !connected;
+    syncFootnote.hidden = !connected;
+    syncBadge.textContent = mode === 'host' ? '房主' : mode === 'client' ? '已連線' : '本機';
+    if (!connected) {
+      syncStatus.hidden = true;
+      qrGrid.hidden = true;
+      syncLive.hidden = true;
+    } else {
+      syncStatus.hidden = false;
+      syncLive.hidden = false;
+      if (mode === 'client') qrGrid.hidden = true;
+    }
+  }
+
+  function updateSyncStatus(text) {
+    syncStatus.textContent = text;
+    syncStatus.hidden = false;
+  }
+
+  function renderSyncMy() {
+    const fallback = { name: `玩家 ${scoreSync.mySlot + 1}`, score: 0 };
+    const me = state.score.entries[scoreSync.mySlot] || fallback;
+    syncMy.replaceChildren();
+
+    const row = document.createElement('div');
+    row.className = 'sync-my-row';
+    const label = document.createElement('span');
+    label.className = 'sync-my-label';
+    label.textContent = `我是 · 玩家 ${scoreSync.mySlot + 1}`;
+    const name = document.createElement('input');
+    name.className = 'sync-my-name';
+    name.type = 'text';
+    name.maxLength = 14;
+    name.value = me.name;
+    name.setAttribute('aria-label', '我的名字');
+    name.addEventListener('change', () => {
+      const value = name.value.trim().slice(0, 14) || `玩家 ${scoreSync.mySlot + 1}`;
+      state.score.entries[scoreSync.mySlot].name = value;
+      if (scoreSync.mode === 'client') sendToHost({ type: 'name', slot: scoreSync.mySlot, name: value });
+      else { saveState(); broadcastState(); }
+    });
+    const myScore = document.createElement('strong');
+    myScore.className = 'sync-my-score';
+    myScore.textContent = String(me.score);
+    row.append(label, name, myScore);
+    syncMy.appendChild(row);
+
+    const controls = document.createElement('div');
+    controls.className = 'sync-my-controls';
+    const round = document.createElement('input');
+    round.className = 'sync-my-round';
+    round.type = 'number';
+    round.min = '0';
+    round.max = '999999';
+    round.inputMode = 'numeric';
+    round.placeholder = '本局分數';
+    round.value = scoreSync.draftRound;
+    round.setAttribute('aria-label', '本局分數');
+    round.addEventListener('input', () => { scoreSync.draftRound = round.value; });
+    const minus = document.createElement('button');
+    minus.className = 'button score-change-button score-minus';
+    minus.type = 'button';
+    minus.textContent = '− 扣分';
+    minus.addEventListener('click', () => submitMyScore(-1));
+    const plus = document.createElement('button');
+    plus.className = 'button score-change-button score-plus';
+    plus.type = 'button';
+    plus.textContent = '＋ 記分';
+    plus.addEventListener('click', () => submitMyScore(1));
+    controls.append(round, minus, plus);
+    syncMy.appendChild(controls);
+  }
+
+  function renderSyncBoard() {
+    syncBoard.replaceChildren();
+    const list = document.createElement('div');
+    list.className = 'sync-board-list';
+    state.score.entries.forEach((entry, index) => {
+      const item = document.createElement('div');
+      item.className = 'sync-board-item' + (index === scoreSync.mySlot ? ' is-me' : '');
+      const rank = document.createElement('span');
+      rank.className = 'sync-board-rank';
+      rank.textContent = String(index + 1);
+      const nm = document.createElement('strong');
+      nm.className = 'sync-board-name';
+      nm.textContent = entry.name;
+      const sc = document.createElement('span');
+      sc.className = 'sync-board-score';
+      sc.textContent = String(entry.score);
+      item.append(rank, nm, sc);
+      list.appendChild(item);
+    });
+    syncBoard.appendChild(list);
+  }
+
+  function renderSyncLive() {
+    renderSyncMy();
+    renderSyncBoard();
+  }
+
+  function submitMyScore(direction) {
+    const round = clamp(Math.floor(Number(scoreSync.draftRound) || 0), 0, 999999);
+    if (!round) {
+      showToast('先輸入本局分數');
+      const input = $('.sync-my-round', syncMy);
+      if (input) input.focus();
+      return;
+    }
+    const slot = scoreSync.mySlot;
+    if (scoreSync.mode === 'client') {
+      sendToHost({ type: 'apply', slot, round, direction });
+    } else if (scoreSync.mode === 'host') {
+      const entry = state.score.entries[slot];
+      if (entry) {
+        entry.score = clamp(entry.score + (round * direction), -999999, 999999);
+        entry.round = 0;
+        saveState();
+        renderSyncLive();
+        broadcastState();
+      }
+    }
+    scoreSync.draftRound = '';
+    renderSyncMy();
+    vibrate(18);
+  }
+
+  function broadcastState() {
+    const payload = {
+      type: 'state',
+      entries: state.score.entries.map((entry) => ({ name: entry.name, score: entry.score, round: entry.round })),
+      count: state.score.count,
+    };
+    scoreSync.conns.forEach(({ conn }) => {
+      try { conn.send(payload); } catch (error) { /* ignore */ }
+    });
+    renderSyncLive();
+  }
+
+  function sendToHost(message) {
+    if (scoreSync.conn && scoreSync.conn.open) {
+      try { scoreSync.conn.send(message); } catch (error) { /* ignore */ }
+    } else {
+      showToast('尚未連上房主');
+    }
+  }
+
+  function buildQrCard(slot, url) {
+    const card = document.createElement('div');
+    card.className = 'qr-card';
+    const label = document.createElement('strong');
+    label.textContent = `玩家 ${slot + 1}`;
+    const sub = document.createElement('span');
+    sub.className = 'qr-card-sub';
+    sub.textContent = `掃描後以「玩家 ${slot + 1}」加入`;
+    const box = document.createElement('div');
+    box.className = 'qr-box';
+    if (typeof qrcode === 'function') {
+      try {
+        const qr = qrcode(0, 'M');
+        qr.addData(url);
+        qr.make();
+        box.innerHTML = qr.createImgTag(6, 4);
+        const img = box.querySelector('img');
+        if (img) { img.width = ''; img.height = ''; img.removeAttribute('width'); img.removeAttribute('height'); }
+      } catch (error) {
+        box.textContent = 'QR 產生失敗';
+      }
+    } else {
+      box.textContent = 'QR 程式未載入';
+    }
+    const link = document.createElement('a');
+    link.href = url;
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.className = 'qr-link';
+    link.textContent = '開啟加入頁面';
+    card.append(label, sub, box, link);
+    return card;
+  }
+
+  function renderQrGrid() {
+    qrGrid.replaceChildren();
+    if (typeof qrcode !== 'function') {
+      qrGrid.hidden = true;
+      return;
+    }
+    const base = `${window.location.origin}${window.location.pathname}`;
+    const count = state.score.count;
+    for (let slot = 1; slot < count; slot += 1) {
+      const url = `${base}?${new URLSearchParams({ join: scoreSync.code, p: String(slot) }).toString()}`;
+      qrGrid.appendChild(buildQrCard(slot, url));
+    }
+    qrGrid.hidden = false;
+  }
+
+  function setupHostConnection(conn) {
+    conn.on('open', () => {
+      conn.on('data', (message) => { try { handleHostMessage(conn, message); } catch (error) { /* ignore */ } });
+    });
+    conn.on('close', () => removeHostConn(conn));
+    conn.on('error', () => removeHostConn(conn));
+  }
+
+  function hostConnectionCount() {
+    return scoreSync.conns.length + 1;
+  }
+
+  function handleHostMessage(conn, message) {
+    if (!message || typeof message !== 'object') return;
+    if (message.type === 'hello') {
+      const slot = clamp(Math.floor(Number(message.slot) || 0), 0, state.score.count - 1);
+      conn.slot = slot;
+      const name = validString(message.name, '').trim().slice(0, 14);
+      if (state.score.entries[slot] && name) state.score.entries[slot].name = name;
+      if (!scoreSync.conns.some((entry) => entry.conn === conn)) scoreSync.conns.push({ conn, slot });
+      saveState();
+      updateSyncStatus(`房間代號 ${scoreSync.code} · 已連線 ${hostConnectionCount()}/${state.score.count} 人`);
+      renderSyncLive();
+      broadcastState();
+    } else if (message.type === 'apply') {
+      const slot = clamp(Math.floor(Number(message.slot) || 0), 0, state.score.count - 1);
+      const entry = state.score.entries[slot];
+      const round = clamp(Math.floor(Number(message.round) || 0), 0, 999999);
+      const direction = Number(message.direction) >= 0 ? 1 : -1;
+      if (entry && round) {
+        entry.score = clamp(entry.score + (round * direction), -999999, 999999);
+        entry.round = 0;
+        saveState();
+        renderSyncLive();
+        broadcastState();
+      }
+    } else if (message.type === 'name') {
+      const slot = clamp(Math.floor(Number(message.slot) || 0), 0, state.score.count - 1);
+      const name = validString(message.name, '').trim().slice(0, 14) || `玩家 ${slot + 1}`;
+      if (state.score.entries[slot]) {
+        state.score.entries[slot].name = name;
+        saveState();
+        renderSyncLive();
+        broadcastState();
+      }
+    }
+  }
+
+  function removeHostConn(conn) {
+    const before = scoreSync.conns.length;
+    scoreSync.conns = scoreSync.conns.filter((entry) => entry.conn !== conn);
+    if (scoreSync.conns.length !== before) {
+      updateSyncStatus(`房間代號 ${scoreSync.code} · 已連線 ${hostConnectionCount()}/${state.score.count} 人`);
+    }
+  }
+
+  function resetSync() {
+    try { if (scoreSync.peer) scoreSync.peer.destroy(); } catch (error) { /* ignore */ }
+    scoreSync.mode = 'local';
+    scoreSync.code = '';
+    scoreSync.peer = null;
+    scoreSync.conns = [];
+    scoreSync.conn = null;
+    scoreSync.mySlot = 0;
+    scoreSync.draftRound = '';
+    scoreSync.ready = false;
+    setScoreMode('local');
+    renderScore();
+  }
+
+  function createRoom() {
+    if (scoreSync.mode !== 'local') return;
+    if (typeof Peer === 'undefined') {
+      showToast('連線程式未載入，請確認網路後重整');
+      return;
+    }
+    const code = makeRoomCode();
+    scoreSync.code = code;
+    scoreSync.mySlot = 0;
+    scoreSync.conns = [];
+    setScoreMode('host');
+    updateSyncStatus('建立中…');
+    peerCreate(`${PEER_HOST_PREFIX}${code.toLowerCase()}`);
+  }
+
+  function peerCreate(hostId) {
+    const peer = new Peer(hostId, { debug: 1 });
+    scoreSync.peer = peer;
+    peer.on('open', () => {
+      scoreSync.ready = true;
+      updateSyncStatus(`房間代號 ${scoreSync.code} · 等大家掃 QR 加入`);
+      renderSyncLive();
+      renderQrGrid();
+    });
+    peer.on('connection', (conn) => setupHostConnection(conn));
+    peer.on('error', (error) => {
+      const type = error && error.type;
+      if (type === 'unavailable-id') { showToast('房間代號衝突，請重試'); resetSync(); }
+      else if (type === 'invalid-id') { showToast('連線設定錯誤'); resetSync(); }
+      else showToast('連線暫時不穩，仍在嘗試');
+    });
+    peer.on('disconnected', () => { try { peer.reconnect(); } catch (err) { /* ignore */ } });
+  }
+
+  function joinRoom(code, slot) {
+    if (typeof Peer === 'undefined') {
+      showToast('連線程式未載入');
+      setScoreMode('local');
+      updateSyncStatus('連線程式未載入，請確認網路後重整');
+      return;
+    }
+    scoreSync.code = code;
+    scoreSync.mySlot = slot;
+    scoreSync.conns = [];
+    scoreSync.draftRound = '';
+    setScoreMode('client');
+    updateSyncStatus(`正在連線「${code}」…`);
+    const peer = new Peer(makeClientId(code, slot), { debug: 1 });
+    scoreSync.peer = peer;
+    peer.on('open', () => {
+      const conn = peer.connect(`${PEER_HOST_PREFIX}${code.toLowerCase()}`, { reliable: true });
+      scoreSync.conn = conn;
+      conn.on('open', () => {
+        const existing = state.score.entries[slot];
+        const name = (existing && validString(existing.name, '').trim()) || `玩家 ${slot + 1}`;
+        conn.send({ type: 'hello', slot, name });
+      });
+      conn.on('data', (message) => { try { handleClientMessage(message); } catch (error) { /* ignore */ } });
+      conn.on('close', () => updateSyncStatus('已中斷連線，請重新掃描 QR'));
+      conn.on('error', () => updateSyncStatus('連線中斷，請重新掃描 QR'));
+    });
+    peer.on('error', () => {
+      showToast('連線失敗，請確認網路');
+      updateSyncStatus('連線失敗，請確認網路後重新掃描');
+    });
+    peer.on('disconnected', () => { try { peer.reconnect(); } catch (err) { /* ignore */ } });
+  }
+
+  function handleClientMessage(message) {
+    if (!message || typeof message !== 'object') return;
+    if (message.type === 'state' && Array.isArray(message.entries)) {
+      state.score.count = clamp(Math.floor(Number(message.count) || message.entries.length || state.score.count), 2, 12);
+      state.score.entries = Array.from({ length: state.score.count }, (_, index) => {
+        const entry = message.entries[index] && typeof message.entries[index] === 'object' ? message.entries[index] : {};
+        return {
+          name: validString(entry.name, `玩家 ${index + 1}`).trim().slice(0, 14) || `玩家 ${index + 1}`,
+          score: clamp(Math.floor(Number(entry.score) || 0), -999999, 999999),
+          round: clamp(Math.floor(Number(entry.round) || 0), 0, 999999),
+        };
+      });
+      saveState();
+      scoreSync.ready = true;
+      updateSyncStatus(`已連線 · 玩家 ${scoreSync.mySlot + 1}`);
+      renderSyncLive();
+    }
+  }
+
+  function initSyncFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    const code = (params.get('join') || '').trim();
+    const slot = Number(params.get('p'));
+    if (code && Number.isFinite(slot) && slot >= 1) {
+      switchView('tools');
+      joinRoom(code.toUpperCase(), clamp(Math.floor(slot), 1, 12));
+    }
+  }
+
+  $('#createRoomButton').addEventListener('click', createRoom);
+  endRoomButton.addEventListener('click', () => {
+    resetSync();
+    showToast('已結束連線');
+  });
+  initSyncFromUrl();
+
   // Countdown timer
   const timerDisplay = $('#timerDisplay');
   const timerStartButton = $('#timerStartButton');
@@ -901,6 +1311,7 @@
   $('#confirmClearButton').addEventListener('click', () => {
     window.clearInterval(timerInterval);
     timerInterval = null;
+    resetSync();
     try { localStorage.removeItem(STORAGE_KEY); } catch (error) { /* ignore */ }
     state = defaultState();
     renderDice();
@@ -913,6 +1324,7 @@
     renderScore();
     state.timer.remaining = state.timer.preset;
     updateTimerDisplay();
+    saveState();
     clearDataModal.hidden = true;
     showToast('已恢復所有預設內容');
   });
