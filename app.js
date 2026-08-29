@@ -1167,9 +1167,8 @@
 
   function joinRoom(code, slot) {
     if (typeof Peer === 'undefined') {
-      showToast('連線程式未載入');
+      showToast('連線程式未載入，請確認網路後重整');
       setScoreMode('local');
-      updateSyncStatus('連線程式未載入，請確認網路後重整');
       return;
     }
     scoreSync.code = code;
