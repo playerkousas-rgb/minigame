@@ -1731,10 +1731,142 @@
     return details;
   }
 
+  // ===== 離線單機模式（Offline solo: one phone, pass it around） =====
+  // 螢幕常亮：離線局全程傳手機，用 Wake Lock 避免手機熄屏（不支援的裝置自動略過）。
+  const soloWake = { count: 0, lock: null };
+  function soloRequestWakeLock() {
+    try {
+      if (!navigator.wakeLock || typeof navigator.wakeLock.request !== 'function') return;
+      navigator.wakeLock.request('screen').then((lock) => {
+        soloWake.lock = lock;
+        if (lock && typeof lock.addEventListener === 'function') {
+          lock.addEventListener('release', () => { if (soloWake.lock === lock) soloWake.lock = null; });
+        }
+      }).catch(() => { /* wake lock is optional */ });
+    } catch (error) { /* wake lock is optional */ }
+  }
+  function soloKeepScreenAwake() {
+    soloWake.count += 1;
+    if (soloWake.count === 1) soloRequestWakeLock();
+  }
+  function soloAllowScreenSleep() {
+    soloWake.count = Math.max(0, soloWake.count - 1);
+    if (soloWake.count === 0 && soloWake.lock) {
+      try { soloWake.lock.release(); } catch (error) { /* ignore */ }
+      soloWake.lock = null;
+    }
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && soloWake.count > 0 && !soloWake.lock) soloRequestWakeLock();
+  });
+
+  function soloProgressNote(text) {
+    const note = document.createElement('p');
+    note.className = 'wolf-custom-summary solo-progress';
+    note.textContent = text;
+    return note;
+  }
+
+  // 黑色交接牌：輪到誰,手機就交給誰,本人點一下才看得到秘密。
+  function soloHandoffCard(topLabel, nameText, actionHint) {
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'solo-deal-card';
+    const label = document.createElement('span');
+    label.className = 'solo-deal-label';
+    label.textContent = topLabel;
+    const name = document.createElement('strong');
+    name.textContent = nameText;
+    const hint = document.createElement('small');
+    hint.textContent = actionHint;
+    card.append(label, name, hint);
+    return card;
+  }
+
+  // 點一下才顯示的秘密卡（夜晚查驗／換牌結果,只給當事人看）。
+  function soloPeekCard(kicker, secret, hint) {
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'game-word-card solo-peek-card is-hidden';
+    const label = document.createElement('span');
+    label.className = 'wolf-phase-label';
+    label.textContent = kicker;
+    const word = document.createElement('strong');
+    word.textContent = secret;
+    card.append(label, word);
+    if (hint) {
+      const note = document.createElement('p');
+      note.className = 'role-desc';
+      note.textContent = hint;
+      card.appendChild(note);
+    }
+    card.addEventListener('click', () => card.classList.toggle('is-hidden'));
+    return card;
+  }
+
+  // 黑色小卡名牌：玩家用手指比,主持人點卡代替投票。
+  function soloCardGrid(entries, options = {}) {
+    const grid = document.createElement('div');
+    grid.className = 'solo-card-grid';
+    entries.forEach((entry) => {
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.className = 'solo-card' + (options.selectedSlot === entry.slot ? ' is-selected' : '');
+      card.dataset.soloSlot = String(entry.slot);
+      const rank = document.createElement('span');
+      rank.className = 'solo-card-rank';
+      rank.textContent = pad(entry.slot + 1);
+      const name = document.createElement('span');
+      name.className = 'solo-card-name';
+      name.textContent = entry.name + (entry.suffix || '');
+      card.append(rank, name);
+      card.addEventListener('click', () => { if (options.onPick) options.onPick(entry); });
+      grid.appendChild(card);
+    });
+    return grid;
+  }
+
+  // 離線傳手機時,本人順手改自己的顯示名稱。
+  function soloNameEditor(player, slot, onRename) {
+    const wrap = document.createElement('div');
+    wrap.className = 'wolf-action';
+    const label = document.createElement('h5');
+    label.textContent = '你的顯示名稱（之後投票、點名都用它）';
+    const input = document.createElement('input');
+    input.className = 'sync-my-name';
+    input.type = 'text';
+    input.maxLength = 14;
+    input.value = player.name;
+    input.setAttribute('aria-label', '我的顯示名稱');
+    input.addEventListener('change', () => {
+      const value = input.value.trim().slice(0, 14) || `玩家 ${slot + 1}`;
+      player.name = value;
+      input.value = value;
+      if (onRename) onRename();
+    });
+    wrap.append(label, input);
+    return wrap;
+  }
+
+  // 「掃 QR 連線 / 離線單機」切換列。
+  function initSoloToggle(rootId, onToggle) {
+    const root = $(`#${rootId}`);
+    let solo = false;
+    $$('.solo-mode-option', root).forEach((button) => {
+      button.addEventListener('click', () => {
+        solo = button.dataset.playmode === 'solo';
+        $$('.solo-mode-option', root).forEach((el) => el.classList.toggle('is-selected', el === button));
+        onToggle(solo);
+      });
+    });
+    return () => solo;
+  }
+
   // Werewolf (secret roles + moderator flow, host + clients via PeerJS)
   const WOLF_HOST_PREFIX = 'pocket-wolf-';
   const wolfSync = {
     mode: 'local',       // 'local' | 'host' | 'client'
+    solo: false,         // 離線單機：不連 PeerJS、不發 QR,輪流傳手機
     code: '',
     peer: null,
     conns: [],           // host: [{ conn, slot }]
@@ -1767,6 +1899,7 @@
   const wolfSetupPanel = $('#wolfSetup');
   const wolfHostPanel = $('#wolfHost');
   const wolfClientPanel = $('#wolfClient');
+  const wolfBadge = $('#wolfBadge');
   const wolfStatus = $('#wolfStatus');
   const wolfQrGrid = $('#wolfQrGrid');
   const wolfRoster = $('#wolfRoster');
@@ -1781,6 +1914,13 @@
   const wolfClientBody = $('#wolfClientBody');
   let wolfCustomRoles = [];
   let wolfSelectedPreset = null;
+  // 離線單機狀態:發牌進度與收票進度。
+  let wolfSoloDeal = { slot: 0, peeked: false };
+  let wolfSoloVote = { idx: 0 };
+  function resetWolfSoloState() {
+    wolfSoloDeal = { slot: 0, peeked: false };
+    wolfSoloVote = { idx: 0 };
+  }
 
   function wolfRoleById(id) {
     return WOLF_ROLES[id] || { name: '村民', emoji: '👤', camp: 'village', desc: '' };
@@ -2085,7 +2225,8 @@
     // A hunter killed at night (or poisoned) may shoot once.
     const hunterDeath = unique.find((slot) => wolfSync.players[slot] && wolfSync.players[slot].role === 'hunter');
     if (Number.isInteger(hunterDeath)) wolfSync.hunterPending = hunterDeath;
-    wolfSync.over = checkWolfWinner();
+    // 獵人還沒開槍前不判定勝負:他可能帶走一隻狼翻盤。
+    wolfSync.over = Number.isInteger(wolfSync.hunterPending) ? null : checkWolfWinner();
   }
 
   function wolfResolveVote() {
@@ -2126,7 +2267,8 @@
         else wolfSync.pendingLastWords = true;
       }
     }
-    wolfSync.over = checkWolfWinner();
+    // 獵人還沒開槍前不判定勝負:他可能帶走一隻狼翻盤。
+    wolfSync.over = Number.isInteger(wolfSync.hunterPending) ? null : checkWolfWinner();
   }
 
   function wolfResolveShoot() {
@@ -2222,6 +2364,21 @@
     enterWolfStep();
   }
 
+  // 離線單機時,部分階段的標題與提示改成「傳手機 / 代投」的說法。
+  function wolfSoloStepCopy(step) {
+    if (!wolfSync.solo || !step) return null;
+    if (step.id === 'reveal') {
+      return { title: '傳手機發牌', hint: '把手機輪流傳給每位玩家:看身份、順手改顯示名稱,蓋牌後傳給下一位。' };
+    }
+    if (step.id === 'day-vote') {
+      return { title: '投票 · 主持人代投', hint: '輪到的玩家用手指比人,主持人點黑卡收票;收齊後自動計票。' };
+    }
+    if (step.target === 'client') {
+      return { hint: '本人睜眼用手比,主持人代為點選;畫面只給本人看。' };
+    }
+    return null;
+  }
+
   function enterWolfStep() {
     const step = wolfCurrentStep();
     if (!step) return;
@@ -2238,12 +2395,14 @@
       wolfSync.deadThisRound = [];
       wolfSync.flipIdiot = null;
       wolfSync.votes = {};
+      wolfSoloVote = { idx: 0 };
     }
     wolfSync.resultForMe = null;
     wolfSync.players.forEach((player) => { player.acted = false; });
     if (wolfSync.mode === 'host') {
+      const copy = wolfSoloStepCopy(step);
       wolfPhaseLabel.textContent = step.label || '';
-      wolfPhaseTitle.textContent = step.title || '';
+      wolfPhaseTitle.textContent = copy && copy.title ? copy.title : (step.title || '');
       renderWolfPhaseHint();
       renderWolfPhaseActions();
       renderWolfRoster();
@@ -2266,7 +2425,8 @@
   function renderWolfPhaseHint() {
     const step = wolfCurrentStep();
     if (!step) return;
-    let text = step.hint || '';
+    const copy = wolfSync.mode === 'host' ? wolfSoloStepCopy(step) : null;
+    let text = (copy && copy.hint) || step.hint || '';
     if (step.timer) {
       const minutes = Math.floor(wolfSync.timerLeft / 60);
       const seconds = wolfSync.timerLeft % 60;
@@ -2282,6 +2442,31 @@
     const heading = document.createElement('div');
     heading.className = 'list-heading';
     const left = document.createElement('span');
+    // 離線發牌中手機會傳到每個人手上,貓紙(身份總覽)先藏起來,發完才顯示。
+    const dealing = wolfSync.solo
+      && wolfCurrentStep() && wolfCurrentStep().id === 'reveal'
+      && wolfSoloDeal.slot < wolfSync.players.length;
+    if (dealing) {
+      left.textContent = `發牌中 · ${wolfSoloDeal.slot}/${wolfSync.players.length} 已看牌`;
+      heading.appendChild(left);
+      wolfRoster.appendChild(heading);
+      wolfSync.players.forEach((player, index) => {
+        const row = document.createElement('div');
+        row.className = 'wolf-player';
+        const rank = document.createElement('span');
+        rank.className = 'wolf-player-rank';
+        rank.textContent = pad(index + 1);
+        const name = document.createElement('strong');
+        name.className = 'wolf-player-name';
+        name.textContent = player.name;
+        const status = document.createElement('span');
+        status.className = 'wolf-player-role';
+        status.textContent = index < wolfSoloDeal.slot ? '✅ 已看牌' : '🂠 待看牌';
+        row.append(rank, name, status);
+        wolfRoster.appendChild(row);
+      });
+      return;
+    }
     left.textContent = `身份總覽（貓紙）· ${wolfAliveCount()} 存活`;
     heading.appendChild(left);
     wolfRoster.appendChild(heading);
@@ -2340,7 +2525,7 @@
       rank.textContent = pad(player.slot + 1);
       const name = document.createElement('span');
       name.className = 'wolf-target-name';
-      name.textContent = player.name + (player.slot === wolfSync.mySlot ? '（你）' : '');
+      name.textContent = player.name + (player.slot === wolfSync.mySlot && !wolfSync.solo ? '（你）' : '');
       button.append(rank, name);
       if (options.badge) {
         const badge = document.createElement('span');
@@ -2497,10 +2682,228 @@
     }
   }
 
+  // ---- 離線單機:傳手機發牌 ----
+  function wolfSoloDealUI() {
+    const total = wolfSync.players.length;
+    const dealt = Math.min(wolfSoloDeal.slot, total);
+    if (dealt >= total) {
+      wolfPhaseActions.appendChild(soloProgressNote(`✅ ${total} 人都看過身份了,手機交回主持人。`));
+      return;
+    }
+    const player = wolfSync.players[dealt];
+    if (!wolfSoloDeal.peeked) {
+      wolfPhaseActions.appendChild(soloProgressNote(`傳手機發牌 · 第 ${dealt + 1}/${total} 位`));
+      const card = soloHandoffCard('請把手機交給', `${pad(dealt + 1)} ${player.name}`, '本人拿起手機後,點這張黑牌看身份');
+      card.addEventListener('click', () => {
+        wolfSoloDeal.peeked = true;
+        renderWolfPhaseActions();
+      });
+      wolfPhaseActions.appendChild(card);
+      return;
+    }
+    const roleInfo = wolfRoleById(player.role);
+    const reveal = document.createElement('div');
+    reveal.className = 'wolf-reveal';
+    const emoji = document.createElement('div');
+    emoji.className = 'wolf-reveal-emoji';
+    emoji.textContent = roleInfo.emoji;
+    const label = document.createElement('span');
+    label.className = 'wolf-phase-label';
+    label.textContent = `${player.name} · 你的秘密身份`;
+    const title = document.createElement('strong');
+    title.className = 'wolf-client-role-name';
+    title.textContent = roleInfo.name;
+    const desc = document.createElement('p');
+    desc.className = 'role-desc';
+    desc.textContent = roleInfo.desc;
+    reveal.append(emoji, label, title, desc);
+    wolfPhaseActions.appendChild(reveal);
+    wolfPhaseActions.appendChild(soloNameEditor(player, dealt, () => { broadcastWolfState(); }));
+    const action = document.createElement('div');
+    action.className = 'wolf-action';
+    const done = document.createElement('button');
+    done.className = 'button button-primary button-large';
+    done.type = 'button';
+    done.innerHTML = dealt + 1 >= total ? '看完了,交回主持人 <span>▣</span>' : '看完了,蓋牌給下一位 <span>▣</span>';
+    done.addEventListener('click', () => {
+      player.ready = true;
+      wolfSoloDeal.slot = dealt + 1;
+      wolfSoloDeal.peeked = false;
+      renderWolfPhaseActions();
+      renderWolfRoster();
+    });
+    action.appendChild(done);
+    wolfPhaseActions.appendChild(action);
+  }
+
+  // ---- 離線單機:夜晚角色行動(本人比手勢,主持人代點) ----
+  function wolfSoloActionUI(step) {
+    const roleInfo = wolfRoleById(step.role);
+    const wrap = document.createElement('div');
+    wrap.className = 'wolf-action';
+    const heading = document.createElement('h5');
+    heading.textContent = `${roleInfo.emoji} ${roleInfo.name}行動 · 本人比手勢,主持人代點`;
+    wrap.appendChild(heading);
+    wolfPhaseActions.appendChild(wrap);
+    const actor = wolfSync.players.find((player) => player.role === step.role && player.alive);
+    if (!actor) {
+      wolfPhaseActions.appendChild(soloProgressNote('✅ 此角色已不在場,直接下一步。'));
+      return;
+    }
+    const actorSlot = wolfSync.players.indexOf(actor);
+    if (actor.acted) {
+      if (step.pick === 'check' && Number.isInteger(wolfSync.targets.seer)) {
+        const target = wolfSync.players[wolfSync.targets.seer];
+        wolfPhaseActions.appendChild(soloPeekCard(
+          '🔮 查驗結果（拿給預言家看）',
+          `${target.name} 是 ${target.role === 'werewolf' ? '🐺 狼人' : '😇 好人'}`,
+          '點一下顯示、再點一下藏起來,只給預言家看。',
+        ));
+      } else {
+        wolfPhaseActions.appendChild(soloProgressNote('✅ 已行動完成,可以下一步。'));
+      }
+      return;
+    }
+    if (step.pick === 'save') {
+      const victim = wolfSync.targets.werewolf;
+      if (Number.isInteger(victim)) {
+        const info = document.createElement('p');
+        info.className = 'wolf-custom-summary';
+        info.textContent = `今晚被殺的是 ${wolfPlayerName(victim)} — 私下告訴女巫(或拿手機給她看)`;
+        wrap.appendChild(info);
+        const useBtn = document.createElement('button');
+        useBtn.className = 'button button-primary button-large';
+        useBtn.type = 'button';
+        useBtn.textContent = '🧪 使用解藥救他';
+        useBtn.addEventListener('click', () => {
+          wolfSync.targets.witch_save = victim;
+          wolfSync.witchUsed.save = true;
+          actor.acted = true;
+          renderWolfPhaseActions();
+        });
+        const noBtn = document.createElement('button');
+        noBtn.className = 'button button-quiet button-large';
+        noBtn.type = 'button';
+        noBtn.textContent = '不使用解藥';
+        noBtn.addEventListener('click', () => {
+          wolfSync.witchUsed.save = true;
+          actor.acted = true;
+          renderWolfPhaseActions();
+        });
+        wrap.append(useBtn, noBtn);
+      } else {
+        const info = document.createElement('p');
+        info.className = 'wolf-custom-summary';
+        info.textContent = '等待狼人行動…';
+        wrap.appendChild(info);
+      }
+      return;
+    }
+    if (step.pick === 'poison') {
+      const skip = wolfOptionButton('不使用毒藥', () => {
+        wolfSync.witchUsed.poison = true;
+        actor.acted = true;
+        renderWolfPhaseActions();
+      });
+      wolfPhaseActions.appendChild(skip);
+      const targets = wolfAliveTargets(actorSlot);
+      wolfPhaseActions.appendChild(wolfTargetList(targets, 'poison', {
+        onPick: (player) => {
+          wolfSync.targets.witch_poison = player.slot;
+          wolfSync.witchUsed.poison = true;
+          actor.acted = true;
+          renderWolfPhaseActions();
+        },
+      }));
+      return;
+    }
+    if (step.pick === 'guard') {
+      const targets = wolfAliveTargets(actorSlot).filter((player) => player.slot !== wolfSync.lastGuardSlot);
+      wolfPhaseActions.appendChild(wolfTargetList(targets, 'guard', {
+        onPick: (player) => {
+          wolfSync.targets.guard = player.slot;
+          actor.acted = true;
+          renderWolfPhaseActions();
+        },
+      }));
+      return;
+    }
+    if (step.pick === 'check') {
+      const targets = wolfAliveTargets(actorSlot);
+      wolfPhaseActions.appendChild(wolfTargetList(targets, 'check', {
+        onPick: (player) => {
+          wolfSync.targets.seer = player.slot;
+          actor.acted = true;
+          renderWolfPhaseActions();
+        },
+      }));
+      return;
+    }
+  }
+
+  // ---- 離線單機:白天投票(玩家指人,主持人點黑卡) ----
+  // 回傳 true = 票已收齊。
+  function wolfSoloVoteUI() {
+    const eligible = wolfSync.players
+      .map((player, slot) => ({ ...player, slot }))
+      .filter((player) => player.alive && !player.voteLocked);
+    const collected = eligible.filter((player) => wolfSync.votes[player.slot] !== undefined).length;
+    wolfPhaseActions.appendChild(soloProgressNote(`主持人代投 · 已收 ${collected}/${eligible.length} 票`));
+    if (wolfSoloVote.idx >= eligible.length) {
+      const collect = document.createElement('button');
+      collect.className = 'button button-secondary';
+      collect.type = 'button';
+      collect.innerHTML = '收票並公布結果 <span>↗</span>';
+      collect.addEventListener('click', () => {
+        wolfSync.stepIndex += 1;
+        enterWolfStep();
+      });
+      wolfPhaseActions.appendChild(collect);
+      return true;
+    }
+    const voter = eligible[wolfSoloVote.idx];
+    const who = document.createElement('p');
+    who.className = 'solo-vote-who';
+    who.textContent = `現在投票：${pad(voter.slot + 1)} ${voter.name} — 用手指比,主持人點卡`;
+    wolfPhaseActions.appendChild(who);
+    const entries = wolfSync.players
+      .map((player, slot) => ({ ...player, slot }))
+      .filter((player) => player.alive && player.slot !== voter.slot);
+    wolfPhaseActions.appendChild(soloCardGrid(entries, {
+      selectedSlot: wolfSync.votes[voter.slot],
+      onPick: (entry) => {
+        wolfSync.votes[voter.slot] = entry.slot;
+        wolfSoloVote.idx += 1;
+        renderWolfPhaseActions();
+      },
+    }));
+    const row = document.createElement('div');
+    row.className = 'solo-row';
+    const abstain = wolfOptionButton('這票棄權', () => {
+      wolfSync.votes[voter.slot] = null;
+      wolfSoloVote.idx += 1;
+      renderWolfPhaseActions();
+    });
+    const redo = wolfOptionButton('↩︎ 重收上一票', () => {
+      if (wolfSoloVote.idx > 0) {
+        wolfSoloVote.idx -= 1;
+        const prev = eligible[wolfSoloVote.idx];
+        if (prev) delete wolfSync.votes[prev.slot];
+        renderWolfPhaseActions();
+      }
+    });
+    redo.disabled = wolfSoloVote.idx === 0;
+    row.append(abstain, redo);
+    wolfPhaseActions.appendChild(row);
+    return false;
+  }
+
   function renderWolfPhaseActions() {
     wolfPhaseActions.replaceChildren();
     const step = wolfCurrentStep();
     if (!step) return;
+    const solo = wolfSync.solo === true;
+    let hideNext = false;
     if (step.target === 'host' && step.pick) {
       // Host picks a target directly (wolves kill / hunter shoot).
       let targets = wolfAliveTargets(null);
@@ -2521,51 +2924,88 @@
         wolfPhaseActions.appendChild(skip);
       }
     } else if (step.target === 'client') {
-      const actor = wolfSync.players.find((player) => player.role === step.role && player.alive && !player.acted);
-      if (actor && actor.slot === 0) {
-        wolfHostActionUI(step);
+      if (solo) {
+        wolfSoloActionUI(step);
       } else {
-        const status = document.createElement('p');
-        status.className = 'wolf-custom-summary';
-        status.textContent = actor
-          ? `等待 ${actor.name}（${wolfRoleById(step.role).name}）行動…`
-          : '✅ 已行動完成';
-        wolfPhaseActions.appendChild(status);
-        if (actor) {
-          const skip = document.createElement('button');
-          skip.className = 'text-button';
-          skip.type = 'button';
-          skip.textContent = '跳過此步（裝置故障時）';
-          skip.addEventListener('click', () => {
-            actor.acted = true;
-            renderWolfPhaseActions();
-          });
-          wolfPhaseActions.appendChild(skip);
+        const actor = wolfSync.players.find((player) => player.role === step.role && player.alive && !player.acted);
+        if (actor && actor.slot === 0) {
+          wolfHostActionUI(step);
+        } else {
+          const status = document.createElement('p');
+          status.className = 'wolf-custom-summary';
+          status.textContent = actor
+            ? `等待 ${actor.name}（${wolfRoleById(step.role).name}）行動…`
+            : '✅ 已行動完成';
+          wolfPhaseActions.appendChild(status);
+          if (actor) {
+            const skip = document.createElement('button');
+            skip.className = 'text-button';
+            skip.type = 'button';
+            skip.textContent = '跳過此步（裝置故障時）';
+            skip.addEventListener('click', () => {
+              actor.acted = true;
+              renderWolfPhaseActions();
+            });
+            wolfPhaseActions.appendChild(skip);
+          }
         }
       }
     } else if (step.target === 'clients') {
-      const eligible = wolfSync.players.filter((player) => player.alive && !player.voteLocked);
-      const voted = eligible.filter((player) => wolfSync.votes[wolfSync.players.indexOf(player)] !== undefined).length;
-      const status = document.createElement('p');
-      status.className = 'wolf-custom-summary';
-      status.textContent = `已投票 ${voted} / ${eligible.length} 人`;
-      wolfPhaseActions.appendChild(status);
-      const collect = document.createElement('button');
-      collect.className = 'button button-secondary';
-      collect.type = 'button';
-      collect.innerHTML = '收票並公布結果 <span>↗</span>';
-      collect.addEventListener('click', () => {
-        wolfSync.stepIndex += 1;
-        enterWolfStep();
-      });
-      wolfPhaseActions.appendChild(collect);
+      if (solo) {
+        hideNext = !wolfSoloVoteUI();
+      } else {
+        const eligible = wolfSync.players.filter((player) => player.alive && !player.voteLocked);
+        const voted = eligible.filter((player) => wolfSync.votes[wolfSync.players.indexOf(player)] !== undefined).length;
+        const status = document.createElement('p');
+        status.className = 'wolf-custom-summary';
+        status.textContent = `已投票 ${voted} / ${eligible.length} 人`;
+        wolfPhaseActions.appendChild(status);
+        const collect = document.createElement('button');
+        collect.className = 'button button-secondary';
+        collect.type = 'button';
+        collect.innerHTML = '收票並公布結果 <span>↗</span>';
+        collect.addEventListener('click', () => {
+          wolfSync.stepIndex += 1;
+          enterWolfStep();
+        });
+        wolfPhaseActions.appendChild(collect);
+      }
     }
     if (step.id === 'reveal') {
-      const confirmed = wolfSync.players.filter((player) => player.ready).length;
-      const note = document.createElement('p');
-      note.className = 'wolf-custom-summary';
-      note.textContent = `已確認 ${confirmed} / ${wolfSync.players.length} 人`;
-      wolfPhaseActions.appendChild(note);
+      if (solo) {
+        wolfSoloDealUI();
+        hideNext = hideNext || wolfSoloDeal.slot < wolfSync.players.length;
+      } else {
+        const confirmed = wolfSync.players.filter((player) => player.ready).length;
+        const note = document.createElement('p');
+        note.className = 'wolf-custom-summary';
+        note.textContent = `已確認 ${confirmed} / ${wolfSync.players.length} 人`;
+        wolfPhaseActions.appendChild(note);
+      }
+    }
+    if (solo && step.id === 'dawn') {
+      const summary = document.createElement('p');
+      summary.className = 'wolf-custom-summary';
+      if (wolfSync.deadThisRound.length) {
+        const names = wolfSync.deadThisRound.map((slot) => `${wolfPlayerName(slot)}(${wolfRoleById(wolfSync.players[slot].role).name})`).join('、');
+        summary.textContent = `☀️ 昨晚出局：${names}`;
+      } else {
+        summary.textContent = '☀️ 昨晚是平安夜,無人死亡。';
+      }
+      wolfPhaseActions.appendChild(summary);
+    }
+    if (solo && step.id === 'day-result') {
+      const summary = document.createElement('p');
+      summary.className = 'wolf-custom-summary';
+      if (wolfSync.flipIdiot !== null) {
+        summary.textContent = `🙃 ${wolfPlayerName(wolfSync.flipIdiot)} 翻牌是白痴,免死!之後失去投票權。`;
+      } else if (wolfSync.deadThisRound.length) {
+        const names = wolfSync.deadThisRound.map((slot) => `${wolfPlayerName(slot)}(${wolfRoleById(wolfSync.players[slot].role).name})`).join('、');
+        summary.textContent = `🗳️ 出局：${names}`;
+      } else {
+        summary.textContent = '🗳️ 平票或全棄權,無人出局。';
+      }
+      wolfPhaseActions.appendChild(summary);
     }
     if (step.id === 'over') {
       wolfNextButton.hidden = true;
@@ -2574,7 +3014,7 @@
       winner.textContent = wolfSync.over && wolfSync.over.camp === 'wolf' ? '🐺 狼人陣營獲勝' : '🌞 好人陣營獲勝';
       wolfPhaseActions.appendChild(winner);
     } else {
-      wolfNextButton.hidden = false;
+      wolfNextButton.hidden = hideNext;
       wolfNextButton.innerHTML = wolfNextLabel(step);
     }
   }
@@ -2822,12 +3262,17 @@
     wolfSync.hunterPending = null;
     wolfSync.pendingLastWords = false;
     wolfSync.myReveal = null;
+    if (wolfSync.solo) soloAllowScreenSleep();
+    wolfSync.solo = false;
+    resetWolfSoloState();
+    wolfBadge.textContent = '房主';
     wolfSetMode('local');
   }
 
   function createWolfRoom() {
     if (wolfSync.mode !== 'local') return;
-    if (typeof Peer === 'undefined') {
+    const solo = wolfSoloWanted();
+    if (!solo && typeof Peer === 'undefined') {
       showToast('連線程式未載入,請確認網路後重整');
       return;
     }
@@ -2842,6 +3287,8 @@
       const swapIndex = randomInt(index + 1);
       [roles[index], roles[swapIndex]] = [roles[swapIndex], roles[index]];
     }
+    wolfSync.solo = solo;
+    resetWolfSoloState();
     wolfSync.code = code;
     wolfSync.mySlot = 0;
     wolfSync.conns = [];
@@ -2850,11 +3297,11 @@
       name: `玩家 ${index + 1}`,
       role,
       alive: true,
-      joined: index === 0,
+      joined: solo || index === 0,
       ready: false,
       acted: false,
       voteLocked: false,
-      online: index === 0,
+      online: solo || index === 0,
     }));
     wolfSync.steps = [];
     wolfSync.stepIndex = -1;
@@ -2862,6 +3309,15 @@
     ensureWolfSteps();
     wolfSync.stepIndex = 0;
     wolfSetMode('host');
+    if (solo) {
+      wolfBadge.textContent = '離線單機';
+      wolfUpdateStatus('離線單機 · 免網路、免 QR,輪流傳手機;螢幕保持常亮');
+      soloKeepScreenAwake();
+      wolfQrGrid.hidden = true;
+      enterWolfStep();
+      return;
+    }
+    wolfBadge.textContent = '房主';
     wolfUpdateStatus('建立中…');
     wolfQrGrid.hidden = true;
     wolfPeerCreate(`${WOLF_HOST_PREFIX}${code.toLowerCase()}`);
@@ -3277,6 +3733,11 @@
   }
 
   $('#createWolfRoomButton').addEventListener('click', createWolfRoom);
+  const wolfSoloWanted = initSoloToggle('wolfPlayMode', (solo) => {
+    $('#createWolfRoomButton').innerHTML = solo ? '開始離線單機局 <span>📴</span>' : '建立狼人殺房間 <span>↗</span>';
+    $('#wolfOnlineCopy').hidden = solo;
+    $('#wolfSoloCopy').hidden = !solo;
+  });
   endWolfRoomButton.addEventListener('click', () => {
     resetWolfSync();
     showToast('已結束遊戲');
@@ -3357,6 +3818,7 @@
   ];
   const spySync = {
     mode: 'local',      // 'local' | 'host' | 'client'
+    solo: false,        // 離線單機：不連 PeerJS、不發 QR,輪流傳手機
     code: '',
     peer: null,
     conns: [],
@@ -3376,6 +3838,7 @@
   const spySetupPanel = $('#spySetup');
   const spyHostPanel = $('#spyHost');
   const spyClientPanel = $('#spyClient');
+  const spyBadge = $('#spyBadge');
   const spyModeList = $('#spyModeList');
   const spyTheme = $('#spyTheme');
   const spyCount = $('#spyCount');
@@ -3398,6 +3861,13 @@
   const spyClientStatus = $('#spyClientStatus');
   const spyClientBody = $('#spyClientBody');
   let spySelectedMode = 'undercover';
+  // 離線單機狀態:發詞進度與收票進度。
+  let spySoloDeal = { slot: 0, peeked: false };
+  let spySoloVote = { idx: 0 };
+  function resetSpySoloState() {
+    spySoloDeal = { slot: 0, peeked: false };
+    spySoloVote = { idx: 0 };
+  }
 
   function spySpeak(text) {
     if (!spySync.config || !spySync.config.voice) return;
@@ -3445,7 +3915,8 @@
 
   function createSpyRoom() {
     if (spySync.mode !== 'local') return;
-    if (typeof Peer === 'undefined') {
+    const solo = spySoloWanted();
+    if (!solo && typeof Peer === 'undefined') {
       showToast('連線程式未載入,請確認網路後重整');
       return;
     }
@@ -3474,6 +3945,8 @@
     const code = makeRoomCode();
     const spySlots = new Set();
     while (spySlots.size < spyTotal) spySlots.add(randomInt(count));
+    spySync.solo = solo;
+    resetSpySoloState();
     spySync.code = code;
     spySync.mySlot = 0;
     spySync.conns = [];
@@ -3481,10 +3954,10 @@
     spySync.players = Array.from({ length: count }, (_, index) => ({
       name: `玩家 ${index + 1}`,
       isSpy: spySlots.has(index),
-      joined: index === 0,
+      joined: solo || index === 0,
       ready: false,
       voted: false,
-      online: index === 0,
+      online: solo || index === 0,
     }));
     spySync.steps = spyBuildSteps();
     spySync.stepIndex = 0;
@@ -3492,6 +3965,15 @@
     spySync.over = null;
     spySync.myWord = null;
     spySetMode('host');
+    if (solo) {
+      spyBadge.textContent = '離線單機';
+      spyUpdateStatus('離線單機 · 免網路、免 QR,輪流傳手機看詞;螢幕保持常亮');
+      soloKeepScreenAwake();
+      spyQrGrid.hidden = true;
+      spyEnterStep();
+      return;
+    }
+    spyBadge.textContent = '房主';
     spyUpdateStatus('建立中…');
     spyQrGrid.hidden = true;
     spyPeerCreate(`${SPY_HOST_PREFIX}${code.toLowerCase()}`);
@@ -3643,6 +4125,10 @@
     spySync.over = null;
     spySync.timerLeft = 0;
     spySync.myWord = null;
+    if (spySync.solo) soloAllowScreenSleep();
+    spySync.solo = false;
+    resetSpySoloState();
+    spyBadge.textContent = '房主';
     spySetMode('local');
   }
 
@@ -3786,18 +4272,34 @@
     spyEnterStep();
   }
 
+  // 離線單機時的標題/提示文案。
+  function spySoloStepCopy(step) {
+    if (!spySync.solo || !step) return null;
+    if (step.id === 'reveal') {
+      return { title: '傳手機發詞', hint: '把手機輪流傳給每位玩家:看自己的詞、順手改顯示名稱,蓋牌後傳下一位。' };
+    }
+    if (step.id === 'vote') {
+      return { title: '投票 · 主持人代投', hint: '輪到的玩家用手指比人,主持人點黑卡收票;收齊後自動揭曉。' };
+    }
+    return null;
+  }
+
   function spyEnterStep() {
     const step = spySync.steps[spySync.stepIndex];
     if (!step) return;
-    if (step.id === 'vote') spySync.votes = {};
+    if (step.id === 'vote') {
+      spySync.votes = {};
+      spySoloVote = { idx: 0 };
+    }
     if (step.id === 'result') spyResolveResult();
     spySync.players.forEach((player) => {
       player.ready = false;
       player.voted = false;
     });
     if (spySync.mode === 'host') {
+      const copy = spySoloStepCopy(step);
       spyPhaseLabel.textContent = step.label || '';
-      spyPhaseTitle.textContent = step.title || '';
+      spyPhaseTitle.textContent = copy && copy.title ? copy.title : (step.title || '');
       renderSpyPhaseHint();
       renderSpyHostView();
       if (spySync.timerInterval) { window.clearInterval(spySync.timerInterval); spySync.timerInterval = null; }
@@ -3829,7 +4331,8 @@
   function renderSpyPhaseHint() {
     const step = spySync.steps[spySync.stepIndex] || null;
     if (!step) return;
-    let text = step.hint || '';
+    const copy = spySync.mode === 'host' ? spySoloStepCopy(step) : null;
+    let text = (copy && copy.hint) || step.hint || '';
     if (step.timer) {
       const minutes = Math.floor(spySync.timerLeft / 60);
       const seconds = spySync.timerLeft % 60;
@@ -3882,10 +4385,126 @@
     return '下一步 <span>↗</span>';
   }
 
+  // ---- 離線單機:傳手機發詞 ----
+  function spySoloDealUI() {
+    const total = spySync.players.length;
+    const dealt = Math.min(spySoloDeal.slot, total);
+    if (dealt >= total) {
+      spyPhaseActions.appendChild(soloProgressNote(`✅ ${total} 人都看過詞了,手機交回主持人。`));
+      return;
+    }
+    const player = spySync.players[dealt];
+    if (!spySoloDeal.peeked) {
+      spyPhaseActions.appendChild(soloProgressNote(`傳手機發詞 · 第 ${dealt + 1}/${total} 位`));
+      const card = soloHandoffCard('請把手機交給', `${pad(dealt + 1)} ${player.name}`, '本人拿起手機後,點這張黑牌看詞');
+      card.addEventListener('click', () => {
+        spySoloDeal.peeked = true;
+        renderSpyPhaseActions();
+      });
+      spyPhaseActions.appendChild(card);
+      return;
+    }
+    const card = document.createElement('div');
+    card.className = 'game-word-card';
+    const label = document.createElement('span');
+    label.className = 'wolf-phase-label';
+    const word = document.createElement('strong');
+    const sub = document.createElement('p');
+    sub.className = 'role-desc';
+    const isSpy = player.isSpy === true;
+    if (spySync.config.mode === 'undercover') {
+      label.textContent = isSpy ? `${player.name} · 你的詞（臥底）` : `${player.name} · 你的詞`;
+      word.textContent = isSpy ? spySync.config.spyWord : spySync.config.word;
+      sub.textContent = isSpy ? '你的詞和別人不一樣,描述時不要露餡!' : '大家說的都是這個詞,描述時不要講出關鍵字。';
+    } else if (isSpy) {
+      label.textContent = `${player.name} · 你的身份`;
+      word.textContent = '🕵️ 間諜';
+      sub.textContent = '你不知道詞是什麼。想辦法從大家的描述中猜出詞,別被發現!';
+    } else {
+      label.textContent = `${player.name} · 你的詞`;
+      word.textContent = spySync.config.word;
+      sub.textContent = '大家說的都是這個詞,描述時不要講出關鍵字。';
+    }
+    card.append(label, word, sub);
+    spyPhaseActions.appendChild(card);
+    spyPhaseActions.appendChild(soloNameEditor(player, dealt, () => { broadcastSpyState(); }));
+    const action = document.createElement('div');
+    action.className = 'wolf-action';
+    const done = document.createElement('button');
+    done.className = 'button button-primary button-large';
+    done.type = 'button';
+    done.innerHTML = dealt + 1 >= total ? '記住了,交回主持人 <span>▣</span>' : '記住了,蓋牌給下一位 <span>▣</span>';
+    done.addEventListener('click', () => {
+      player.ready = true;
+      spySoloDeal.slot = dealt + 1;
+      spySoloDeal.peeked = false;
+      renderSpyPhaseActions();
+      renderSpyRoster();
+    });
+    action.appendChild(done);
+    spyPhaseActions.appendChild(action);
+  }
+
+  // ---- 離線單機:投票(玩家指人,主持人點黑卡) ----
+  function spySoloVoteUI() {
+    const voters = spySync.players.map((player, slot) => ({ ...player, slot }));
+    const collected = voters.filter((player) => spySync.votes[player.slot] !== undefined).length;
+    spyPhaseActions.appendChild(soloProgressNote(`主持人代投 · 已收 ${collected}/${voters.length} 票`));
+    if (spySoloVote.idx >= voters.length) {
+      const reveal = document.createElement('button');
+      reveal.className = 'button button-secondary';
+      reveal.type = 'button';
+      reveal.innerHTML = '揭曉答案 <span>🎬</span>';
+      reveal.addEventListener('click', () => spyAdvance());
+      spyPhaseActions.appendChild(reveal);
+      return true;
+    }
+    const voter = voters[spySoloVote.idx];
+    const who = document.createElement('p');
+    who.className = 'solo-vote-who';
+    who.textContent = `現在投票：${pad(voter.slot + 1)} ${voter.name} — 用手指比,主持人點卡`;
+    spyPhaseActions.appendChild(who);
+    const entries = voters.filter((player) => player.slot !== voter.slot);
+    spyPhaseActions.appendChild(soloCardGrid(entries, {
+      selectedSlot: spySync.votes[voter.slot],
+      onPick: (entry) => {
+        spySync.votes[voter.slot] = entry.slot;
+        spySync.players[voter.slot].voted = true;
+        spySoloVote.idx += 1;
+        renderSpyPhaseActions();
+      },
+    }));
+    const row = document.createElement('div');
+    row.className = 'solo-row';
+    const abstain = wolfOptionButton('這票棄權', () => {
+      spySync.votes[voter.slot] = null;
+      spySync.players[voter.slot].voted = true;
+      spySoloVote.idx += 1;
+      renderSpyPhaseActions();
+    });
+    const redo = wolfOptionButton('↩︎ 重收上一票', () => {
+      if (spySoloVote.idx > 0) {
+        spySoloVote.idx -= 1;
+        const prev = voters[spySoloVote.idx];
+        if (prev) {
+          delete spySync.votes[prev.slot];
+          spySync.players[prev.slot].voted = false;
+        }
+        renderSpyPhaseActions();
+      }
+    });
+    redo.disabled = spySoloVote.idx === 0;
+    row.append(abstain, redo);
+    spyPhaseActions.appendChild(row);
+    return false;
+  }
+
   function renderSpyPhaseActions() {
     spyPhaseActions.replaceChildren();
     const step = spySync.steps[spySync.stepIndex] || null;
     if (!step) return;
+    const solo = spySync.solo === true;
+    let hideNext = false;
     if (step.id === 'result' && spySync.over) {
       const banner = document.createElement('div');
       banner.className = 'wolf-winner';
@@ -3910,19 +4529,28 @@
       return;
     }
     if (step.id === 'vote') {
-      const voted = spySync.players.filter((player) => player.voted).length;
-      const note = document.createElement('p');
-      note.className = 'wolf-custom-summary';
-      note.textContent = `已投票 ${voted}/${spySync.players.length} 人。`;
-      spyPhaseActions.appendChild(note);
+      if (solo) {
+        hideNext = !spySoloVoteUI();
+      } else {
+        const voted = spySync.players.filter((player) => player.voted).length;
+        const note = document.createElement('p');
+        note.className = 'wolf-custom-summary';
+        note.textContent = `已投票 ${voted}/${spySync.players.length} 人。`;
+        spyPhaseActions.appendChild(note);
+      }
     } else if (step.id === 'reveal') {
-      const confirmed = spySync.players.filter((player) => player.ready).length;
-      const note = document.createElement('p');
-      note.className = 'wolf-custom-summary';
-      note.textContent = `已確認 ${confirmed}/${spySync.players.length} 人。`;
-      spyPhaseActions.appendChild(note);
+      if (solo) {
+        spySoloDealUI();
+        hideNext = spySoloDeal.slot < spySync.players.length;
+      } else {
+        const confirmed = spySync.players.filter((player) => player.ready).length;
+        const note = document.createElement('p');
+        note.className = 'wolf-custom-summary';
+        note.textContent = `已確認 ${confirmed}/${spySync.players.length} 人。`;
+        spyPhaseActions.appendChild(note);
+      }
     }
-    spyNextButton.hidden = false;
+    spyNextButton.hidden = hideNext;
     spyNextButton.innerHTML = spyNextLabel(step);
   }
 
@@ -4143,6 +4771,11 @@
     spyCustom.hidden = spyTheme.value !== 'custom';
   });
   $('#createSpyRoomButton').addEventListener('click', createSpyRoom);
+  const spySoloWanted = initSoloToggle('spyPlayMode', (solo) => {
+    $('#createSpyRoomButton').innerHTML = solo ? '開始離線單機局 <span>📴</span>' : '建立誰是臥底房間 <span>↗</span>';
+    $('#spyOnlineCopy').hidden = solo;
+    $('#spySoloCopy').hidden = !solo;
+  });
   endSpyRoomButton.addEventListener('click', () => {
     resetSpySync();
     showToast('已結束遊戲');
@@ -4177,6 +4810,7 @@
   ];
   const oneSync = {
     mode: 'local',      // 'local' | 'host' | 'client'
+    solo: false,        // 離線單機：不連 PeerJS、不發 QR,輪流傳手機
     code: '',
     peer: null,
     conns: [],
@@ -4198,6 +4832,7 @@
   const oneSetupPanel = $('#oneSetup');
   const oneHostPanel = $('#oneHost');
   const oneClientPanel = $('#oneClient');
+  const oneBadge = $('#oneBadge');
   const onePresetList = $('#onePresetList');
   const oneCustom = $('#oneCustom');
   const oneVoiceToggle = $('#oneVoiceToggle');
@@ -4216,6 +4851,15 @@
   let oneCustomRoles = [];
   let oneSelectedPreset = null;
   let oneSwapPicks = [];
+  // 離線單機狀態:發牌進度、收票進度、搗蛋鬼的兩個點選。
+  let oneSoloDeal = { slot: 0, peeked: false };
+  let oneSoloVote = { idx: 0 };
+  let oneSoloSwapPicks = [];
+  function resetOneSoloState() {
+    oneSoloDeal = { slot: 0, peeked: false };
+    oneSoloVote = { idx: 0 };
+    oneSoloSwapPicks = [];
+  }
 
   function oneRoleById(id) {
     return ONE_ROLES[id] || { name: '村民', emoji: '👤', camp: 'village', desc: '' };
@@ -4356,7 +5000,8 @@
 
   function createOneNightRoom() {
     if (oneSync.mode !== 'local') return;
-    if (typeof Peer === 'undefined') {
+    const solo = oneSoloWanted();
+    if (!solo && typeof Peer === 'undefined') {
       showToast('連線程式未載入,請確認網路後重整');
       return;
     }
@@ -4370,6 +5015,8 @@
       const swapIndex = randomInt(index + 1);
       [roles[index], roles[swapIndex]] = [roles[swapIndex], roles[index]];
     }
+    oneSync.solo = solo;
+    resetOneSoloState();
     oneSync.code = code;
     oneSync.mySlot = 0;
     oneSync.conns = [];
@@ -4378,11 +5025,11 @@
       name: `玩家 ${index + 1}`,
       role,
       initialRole: role,
-      joined: index === 0,
+      joined: solo || index === 0,
       ready: false,
       acted: false,
       voted: false,
-      online: index === 0,
+      online: solo || index === 0,
     }));
     oneSync.steps = oneBuildSteps();
     oneSync.stepIndex = 0;
@@ -4392,6 +5039,15 @@
     oneSync.resultForMe = null;
     oneSync.wolfMates = [];
     oneSetMode('host');
+    if (solo) {
+      oneBadge.textContent = '離線單機';
+      oneUpdateStatus('離線單機 · 免網路、免 QR,輪流傳手機;螢幕保持常亮');
+      soloKeepScreenAwake();
+      oneQrGrid.hidden = true;
+      oneEnterStep();
+      return;
+    }
+    oneBadge.textContent = '房主';
     oneUpdateStatus('建立中…');
     oneQrGrid.hidden = true;
     onePeerCreate(`${ONE_HOST_PREFIX}${code.toLowerCase()}`);
@@ -4474,6 +5130,47 @@
     conn.on('error', () => removeOneHostConn(conn));
   }
 
+  // 共用行動引擎:線上(玩家手機)與離線單機(主持人代點)共用同一套查驗/換牌邏輯。
+  // 行動者以「發到的那張牌」(initialRole)認定,與玩家端畫面一致;換牌不影響今晚的行動順序。
+  function oneApplyAct(slot, pick, payload = {}) {
+    const player = oneSync.players[slot];
+    if (!player) return false;
+    const step = oneSync.steps[oneSync.stepIndex] || null;
+    if (!step || step.pick !== pick || player.initialRole !== step.role) return false;
+    player.acted = true;
+    if (pick === 'check') {
+      const target = clamp(Math.floor(Number(payload.target)), 0, oneSync.players.length - 1);
+      oneSync.targets.seer = target;
+      oneSync.resultForMe = {
+        forSlot: slot,
+        kind: 'check',
+        targetName: oneSync.players[target].name,
+        isWolf: oneSync.players[target].initialRole === 'werewolf',
+      };
+    } else if (pick === 'rob') {
+      const target = clamp(Math.floor(Number(payload.target)), 0, oneSync.players.length - 1);
+      if (target === slot) { player.acted = false; return false; }
+      const robberOld = player.role;
+      const victimOld = oneSync.players[target].role;
+      player.role = victimOld;
+      oneSync.players[target].role = robberOld;
+      oneSync.targets.rob = target;
+      oneSync.resultForMe = { forSlot: slot, kind: 'role', roleId: victimOld };
+    } else if (pick === 'swap2') {
+      const targets = Array.isArray(payload.targets) ? payload.targets.map((value) => clamp(Math.floor(Number(value)), 0, oneSync.players.length - 1)) : [];
+      if (targets.length === 2 && targets[0] !== targets[1] && !targets.includes(slot)) {
+        const roleA = oneSync.players[targets[0]].role;
+        const roleB = oneSync.players[targets[1]].role;
+        oneSync.players[targets[0]].role = roleB;
+        oneSync.players[targets[1]].role = roleA;
+        oneSync.targets.swap2 = targets;
+      }
+    } else if (pick === 'self') {
+      oneSync.resultForMe = { forSlot: slot, kind: 'role', roleId: player.role };
+    }
+    return true;
+  }
+
   function handleOneHostMessage(conn, message) {
     if (!message || typeof message !== 'object') return;
     if (message.type === 'hello') {
@@ -4502,44 +5199,8 @@
       }
     } else if (message.type === 'act') {
       const slot = clamp(Math.floor(Number(message.slot) || 0), 0, oneSync.players.length - 1);
-      if (!oneSync.players[slot]) return;
-      const step = oneSync.steps[oneSync.stepIndex] || null;
-      const pick = validString(message.pick, '');
-      if (step && step.pick === pick && oneSync.players[slot].role === step.role) {
-        oneSync.players[slot].acted = true;
-        if (pick === 'check') {
-          const target = clamp(Math.floor(Number(message.target)), 0, oneSync.players.length - 1);
-          oneSync.targets.seer = target;
-          const targetRole = oneSync.players[target].initialRole;
-          oneSync.resultForMe = {
-            forSlot: slot,
-            kind: 'check',
-            targetName: oneSync.players[target].name,
-            isWolf: targetRole === 'werewolf',
-          };
-        } else if (pick === 'rob') {
-          const target = clamp(Math.floor(Number(message.target)), 0, oneSync.players.length - 1);
-          if (target === slot) return;
-          const robberOld = oneSync.players[slot].role;
-          const victimOld = oneSync.players[target].role;
-          oneSync.players[slot].role = victimOld;
-          oneSync.players[target].role = robberOld;
-          oneSync.targets.rob = target;
-          oneSync.resultForMe = { forSlot: slot, kind: 'role', roleId: victimOld };
-        } else if (pick === 'swap2') {
-          const targets = Array.isArray(message.targets) ? message.targets.map((value) => clamp(Math.floor(Number(value)), 0, oneSync.players.length - 1)) : [];
-          if (targets.length === 2 && targets[0] !== targets[1] && !targets.includes(slot)) {
-            const roleA = oneSync.players[targets[0]].role;
-            const roleB = oneSync.players[targets[1]].role;
-            oneSync.players[targets[0]].role = roleB;
-            oneSync.players[targets[1]].role = roleA;
-            oneSync.targets.swap2 = targets;
-          }
-        } else if (pick === 'self') {
-          oneSync.resultForMe = { forSlot: slot, kind: 'role', roleId: oneSync.players[slot].role };
-        }
-        broadcastOneState();
-      }
+      const applied = oneApplyAct(slot, validString(message.pick, ''), message);
+      if (applied) broadcastOneState();
     } else if (message.type === 'vote') {
       const slot = clamp(Math.floor(Number(message.slot) || 0), 0, oneSync.players.length - 1);
       if (!oneSync.players[slot]) return;
@@ -4586,6 +5247,10 @@
     oneSync.wolfMates = [];
     oneSync.timerLeft = 0;
     oneSwapPicks = [];
+    if (oneSync.solo) soloAllowScreenSleep();
+    oneSync.solo = false;
+    resetOneSoloState();
+    oneBadge.textContent = '房主';
     oneSetMode('local');
   }
 
@@ -4736,9 +5401,31 @@
     oneEnterStep();
   }
 
+  // 離線單機時的標題/提示文案。
+  function oneSoloStepCopy(step) {
+    if (!oneSync.solo || !step) return null;
+    if (step.id === 'reveal') {
+      return { title: '傳手機發牌', hint: '把手機輪流傳給每位玩家:看身份、順手改顯示名稱,蓋牌後傳下一位。' };
+    }
+    if (step.id === 'vote') {
+      return { title: '投票 · 主持人代投', hint: '輪到的玩家用手指比人,主持人點黑卡收票;收齊後自動揭曉。' };
+    }
+    if (step.target === 'client') {
+      return { hint: '本人睜眼行動:比手勢或看畫面,主持人代為點選。' };
+    }
+    return null;
+  }
+
   function oneEnterStep() {
-    const step = oneSync.steps[oneSync.stepIndex];
+    let step = oneSync.steps[oneSync.stepIndex];
     if (!step) return;
+    // 離線單機:本局沒有的角色直接跳過該夜晚步驟(沒人可行動)。
+    while (oneSync.solo && step && step.target === 'client' && step.role
+      && !oneSync.players.some((player) => player.initialRole === step.role)) {
+      oneSync.stepIndex += 1;
+      step = oneSync.steps[oneSync.stepIndex];
+      if (!step) return;
+    }
     if (step.id === 'wolves') {
       oneSync.wolfMates = oneSync.players.map((player, index) => (player.initialRole === 'werewolf' ? index : -1)).filter((index) => index >= 0);
     }
@@ -4747,7 +5434,10 @@
       oneSync.resultForMe = null;
     }
     if (step.id === 'dawn') oneSync.resultForMe = null;
-    if (step.id === 'vote') oneSync.votes = {};
+    if (step.id === 'vote') {
+      oneSync.votes = {};
+      oneSoloVote = { idx: 0 };
+    }
     if (step.id === 'result') oneResolveResult();
     oneSync.players.forEach((player) => {
       player.ready = false;
@@ -4755,8 +5445,9 @@
       player.voted = false;
     });
     if (oneSync.mode === 'host') {
+      const copy = oneSoloStepCopy(step);
       onePhaseLabel.textContent = step.label || '';
-      onePhaseTitle.textContent = step.title || '';
+      onePhaseTitle.textContent = copy && copy.title ? copy.title : (step.title || '');
       renderOnePhaseHint();
       renderOneHostView();
       if (oneSync.timerInterval) { window.clearInterval(oneSync.timerInterval); oneSync.timerInterval = null; }
@@ -4785,7 +5476,8 @@
   function renderOnePhaseHint() {
     const step = oneSync.steps[oneSync.stepIndex] || null;
     if (!step) return;
-    let text = step.hint || '';
+    const copy = oneSync.mode === 'host' ? oneSoloStepCopy(step) : null;
+    let text = (copy && copy.hint) || step.hint || '';
     if (step.timer) {
       const minutes = Math.floor(oneSync.timerLeft / 60);
       const seconds = oneSync.timerLeft % 60;
@@ -4804,12 +5496,33 @@
     const stepId = step ? step.id : '';
     const ready = oneSync.players.filter((player) => player.ready).length;
     const voted = oneSync.players.filter((player) => player.voted).length;
+    // 離線發牌中手機會傳到每個人手上,貓紙先藏起來,發完才顯示。
+    const dealing = oneSync.solo && stepId === 'reveal' && oneSoloDeal.slot < oneSync.players.length;
     let stateText = '';
-    if (stepId === 'vote') stateText = `· 已投票 ${voted}/${oneSync.players.length}`;
+    if (dealing) stateText = `· ${oneSoloDeal.slot}/${oneSync.players.length} 已看牌`;
+    else if (stepId === 'vote') stateText = `· 已投票 ${voted}/${oneSync.players.length}`;
     else if (stepId === 'reveal') stateText = `· 已確認 ${ready}/${oneSync.players.length}`;
-    left.textContent = `身份總覽（貓紙）${stateText}`;
+    left.textContent = dealing ? `發牌中${stateText}` : `身份總覽（貓紙）${stateText}`;
     heading.appendChild(left);
     oneRoster.appendChild(heading);
+    if (dealing) {
+      oneSync.players.forEach((player, index) => {
+        const row = document.createElement('div');
+        row.className = 'wolf-player';
+        const rank = document.createElement('span');
+        rank.className = 'wolf-player-rank';
+        rank.textContent = pad(index + 1);
+        const name = document.createElement('strong');
+        name.className = 'wolf-player-name';
+        name.textContent = player.name;
+        const status = document.createElement('span');
+        status.className = 'wolf-player-role';
+        status.textContent = index < oneSoloDeal.slot ? '✅ 已看牌' : '🂠 待看牌';
+        row.append(rank, name, status);
+        oneRoster.appendChild(row);
+      });
+      return;
+    }
     oneSync.players.forEach((player, index) => {
       const row = document.createElement('div');
       row.className = 'wolf-player'
@@ -4840,10 +5553,224 @@
     return '下一步 <span>↗</span>';
   }
 
+  // ---- 離線單機:傳手機發牌 ----
+  function oneSoloDealUI() {
+    const total = oneSync.players.length;
+    const dealt = Math.min(oneSoloDeal.slot, total);
+    if (dealt >= total) {
+      onePhaseActions.appendChild(soloProgressNote(`✅ ${total} 人都看過身份了,手機交回主持人。`));
+      return;
+    }
+    const player = oneSync.players[dealt];
+    if (!oneSoloDeal.peeked) {
+      onePhaseActions.appendChild(soloProgressNote(`傳手機發牌 · 第 ${dealt + 1}/${total} 位`));
+      const card = soloHandoffCard('請把手機交給', `${pad(dealt + 1)} ${player.name}`, '本人拿起手機後,點這張黑牌看身份');
+      card.addEventListener('click', () => {
+        oneSoloDeal.peeked = true;
+        renderOnePhaseActions();
+      });
+      onePhaseActions.appendChild(card);
+      return;
+    }
+    onePhaseActions.appendChild(oneRoleCard(`${player.name} · 你的秘密身份`, player.initialRole));
+    onePhaseActions.appendChild(soloNameEditor(player, dealt, () => { broadcastOneState(); }));
+    const action = document.createElement('div');
+    action.className = 'wolf-action';
+    const done = document.createElement('button');
+    done.className = 'button button-primary button-large';
+    done.type = 'button';
+    done.innerHTML = dealt + 1 >= total ? '看完了,交回主持人 <span>▣</span>' : '看完了,蓋牌給下一位 <span>▣</span>';
+    done.addEventListener('click', () => {
+      player.ready = true;
+      oneSoloDeal.slot = dealt + 1;
+      oneSoloDeal.peeked = false;
+      renderOnePhaseActions();
+      renderOneRoster();
+    });
+    action.appendChild(done);
+    onePhaseActions.appendChild(action);
+  }
+
+  // ---- 離線單機:夜晚行動(主持人代點,結果只給當事人看) ----
+  function oneSoloNightUI(step) {
+    const roleInfo = oneRoleById(step.role);
+    const wrap = document.createElement('div');
+    wrap.className = 'wolf-action';
+    const heading = document.createElement('h5');
+    heading.textContent = `${roleInfo.emoji} ${roleInfo.name}行動 · 主持人代操作`;
+    wrap.appendChild(heading);
+    onePhaseActions.appendChild(wrap);
+    const actor = oneSync.players.find((player) => player.initialRole === step.role && !player.acted);
+    if (step.pick === 'mates') {
+      const wolves = oneSync.players
+        .map((player, slot) => ({ ...player, slot }))
+        .filter((player) => player.initialRole === 'werewolf');
+      const allDone = wolves.every((wolf) => wolf.acted);
+      if (allDone) {
+        onePhaseActions.appendChild(soloProgressNote('✅ 狼人已相認,可以下一步。'));
+        return;
+      }
+      const names = wolves.map((wolf) => wolf.name).join('、');
+      onePhaseActions.appendChild(soloPeekCard(
+        '🐺 狼人同伴（拿給狼人看）',
+        wolves.length > 1 ? names : '你是今晚唯一的狼人',
+        '狼人請睜眼,主持人把畫面拿給狼人看;其他人別偷看。',
+      ));
+      const done = wolfOptionButton('狼人記住了,繼續', () => {
+        wolves.forEach((wolf) => oneApplyAct(wolf.slot, 'mates'));
+        renderOneHostView();
+      });
+      onePhaseActions.appendChild(done);
+      return;
+    }
+    if (!actor) {
+      if (step.pick === 'check' && oneSync.resultForMe && oneSync.resultForMe.kind === 'check') {
+        const result = oneSync.resultForMe;
+        onePhaseActions.appendChild(soloPeekCard(
+          '🔮 查驗結果（拿給預言家看）',
+          `${result.targetName} 是 ${result.isWolf ? '🐺 狼人' : '😇 好人'}`,
+          '點一下顯示、再點一下藏起來,只給預言家看。',
+        ));
+      } else if ((step.pick === 'rob' || step.pick === 'self') && oneSync.resultForMe && oneSync.resultForMe.kind === 'role') {
+        const newRole = oneRoleById(oneSync.resultForMe.roleId);
+        onePhaseActions.appendChild(soloPeekCard(
+          step.pick === 'rob' ? '🦹 換到的身份（拿給強盜看）' : '😴 你現在的身份（拿給失眠者看）',
+          `${newRole.emoji} ${newRole.name}`,
+          '點一下顯示、再點一下藏起來,只給本人看。',
+        ));
+      } else if (step.pick === 'swap2' && Array.isArray(oneSync.targets.swap2)) {
+        onePhaseActions.appendChild(soloProgressNote(`✅ 已交換 ${oneSync.players[oneSync.targets.swap2[0]].name} 和 ${oneSync.players[oneSync.targets.swap2[1]].name} 的身份牌。`));
+      } else {
+        onePhaseActions.appendChild(soloProgressNote('✅ 已行動完成,可以下一步。'));
+      }
+      return;
+    }
+    const actorSlot = oneSync.players.indexOf(actor);
+    if (step.pick === 'check') {
+      const targets = oneSync.players
+        .map((player, slot) => ({ ...player, slot }))
+        .filter((player) => player.slot !== actorSlot);
+      onePhaseActions.appendChild(oneTargetList(targets, 'check', {
+        onPick: (player) => {
+          oneApplyAct(actorSlot, 'check', { target: player.slot });
+          renderOneHostView();
+        },
+      }));
+      return;
+    }
+    if (step.pick === 'rob') {
+      const targets = oneSync.players
+        .map((player, slot) => ({ ...player, slot }))
+        .filter((player) => player.slot !== actorSlot);
+      onePhaseActions.appendChild(oneTargetList(targets, 'rob', {
+        onPick: (player) => {
+          oneApplyAct(actorSlot, 'rob', { target: player.slot });
+          renderOneHostView();
+        },
+      }));
+      return;
+    }
+    if (step.pick === 'swap2') {
+      const note = document.createElement('p');
+      note.className = 'wolf-custom-summary';
+      note.textContent = '搗蛋鬼比出兩個人,主持人點選(不能選搗蛋鬼自己):';
+      onePhaseActions.appendChild(note);
+      const entries = oneSync.players
+        .map((player, slot) => ({ ...player, slot }))
+        .filter((player) => player.slot !== actorSlot);
+      onePhaseActions.appendChild(soloCardGrid(entries, {
+        onPick: (entry) => {
+          if (oneSoloSwapPicks.includes(entry.slot)) oneSoloSwapPicks = oneSoloSwapPicks.filter((slot) => slot !== entry.slot);
+          else if (oneSoloSwapPicks.length < 2) oneSoloSwapPicks.push(entry.slot);
+          renderOnePhaseActions();
+        },
+      }));
+      if (oneSoloSwapPicks.length === 2) {
+        const confirmBtn = wolfOptionButton(`交換 ${oneSoloSwapPicks.map((slot) => oneSync.players[slot].name).join(' 和 ')}`, () => {
+          oneApplyAct(actorSlot, 'swap2', { targets: [...oneSoloSwapPicks] });
+          oneSoloSwapPicks = [];
+          renderOneHostView();
+        });
+        onePhaseActions.appendChild(confirmBtn);
+      }
+      return;
+    }
+    if (step.pick === 'self') {
+      const currentRole = oneRoleById(actor.role);
+      onePhaseActions.appendChild(soloPeekCard(
+        '😴 你現在的身份（拿給失眠者看）',
+        `${currentRole.emoji} ${currentRole.name}`,
+        '點一下顯示、再點一下藏起來,只給本人看。',
+      ));
+      const done = wolfOptionButton('失眠者確認完成', () => {
+        oneApplyAct(actorSlot, 'self');
+        renderOneHostView();
+      });
+      onePhaseActions.appendChild(done);
+      return;
+    }
+  }
+
+  // ---- 離線單機:投票(玩家指人,主持人點黑卡) ----
+  function oneSoloVoteUI() {
+    const voters = oneSync.players.map((player, slot) => ({ ...player, slot }));
+    const collected = voters.filter((player) => oneSync.votes[player.slot] !== undefined).length;
+    onePhaseActions.appendChild(soloProgressNote(`主持人代投 · 已收 ${collected}/${voters.length} 票`));
+    if (oneSoloVote.idx >= voters.length) {
+      const reveal = document.createElement('button');
+      reveal.className = 'button button-secondary';
+      reveal.type = 'button';
+      reveal.innerHTML = '揭曉結果 <span>🎬</span>';
+      reveal.addEventListener('click', () => oneAdvance());
+      onePhaseActions.appendChild(reveal);
+      return true;
+    }
+    const voter = voters[oneSoloVote.idx];
+    const who = document.createElement('p');
+    who.className = 'solo-vote-who';
+    who.textContent = `現在投票：${pad(voter.slot + 1)} ${voter.name} — 用手指比,主持人點卡`;
+    onePhaseActions.appendChild(who);
+    const entries = voters.filter((player) => player.slot !== voter.slot);
+    onePhaseActions.appendChild(soloCardGrid(entries, {
+      selectedSlot: oneSync.votes[voter.slot],
+      onPick: (entry) => {
+        oneSync.votes[voter.slot] = entry.slot;
+        oneSync.players[voter.slot].voted = true;
+        oneSoloVote.idx += 1;
+        renderOnePhaseActions();
+      },
+    }));
+    const row = document.createElement('div');
+    row.className = 'solo-row';
+    const abstain = wolfOptionButton('這票棄權', () => {
+      oneSync.votes[voter.slot] = null;
+      oneSync.players[voter.slot].voted = true;
+      oneSoloVote.idx += 1;
+      renderOnePhaseActions();
+    });
+    const redo = wolfOptionButton('↩︎ 重收上一票', () => {
+      if (oneSoloVote.idx > 0) {
+        oneSoloVote.idx -= 1;
+        const prev = voters[oneSoloVote.idx];
+        if (prev) {
+          delete oneSync.votes[prev.slot];
+          oneSync.players[prev.slot].voted = false;
+        }
+        renderOnePhaseActions();
+      }
+    });
+    redo.disabled = oneSoloVote.idx === 0;
+    row.append(abstain, redo);
+    onePhaseActions.appendChild(row);
+    return false;
+  }
+
   function renderOnePhaseActions() {
     onePhaseActions.replaceChildren();
     const step = oneSync.steps[oneSync.stepIndex] || null;
     if (!step) return;
+    const solo = oneSync.solo === true;
+    let hideNext = false;
     if (step.id === 'result' && oneSync.over) {
       const banner = document.createElement('div');
       banner.className = 'wolf-winner';
@@ -4863,26 +5790,39 @@
       return;
     }
     if (step.id === 'vote') {
-      const voted = oneSync.players.filter((player) => player.voted).length;
-      const note = document.createElement('p');
-      note.className = 'wolf-custom-summary';
-      note.textContent = `已投票 ${voted}/${oneSync.players.length} 人。`;
-      onePhaseActions.appendChild(note);
+      if (solo) {
+        hideNext = !oneSoloVoteUI();
+      } else {
+        const voted = oneSync.players.filter((player) => player.voted).length;
+        const note = document.createElement('p');
+        note.className = 'wolf-custom-summary';
+        note.textContent = `已投票 ${voted}/${oneSync.players.length} 人。`;
+        onePhaseActions.appendChild(note);
+      }
     } else if (step.id === 'reveal') {
-      const ready = oneSync.players.filter((player) => player.ready).length;
-      const note = document.createElement('p');
-      note.className = 'wolf-custom-summary';
-      note.textContent = `已確認 ${ready}/${oneSync.players.length} 人。`;
-      onePhaseActions.appendChild(note);
+      if (solo) {
+        oneSoloDealUI();
+        hideNext = oneSoloDeal.slot < oneSync.players.length;
+      } else {
+        const ready = oneSync.players.filter((player) => player.ready).length;
+        const note = document.createElement('p');
+        note.className = 'wolf-custom-summary';
+        note.textContent = `已確認 ${ready}/${oneSync.players.length} 人。`;
+        onePhaseActions.appendChild(note);
+      }
     } else if (step.target === 'client' && step.role) {
-      const roleInfo = oneRoleById(step.role);
-      const acted = oneSync.players.filter((player) => player.acted).length;
-      const note = document.createElement('p');
-      note.className = 'wolf-custom-summary';
-      note.textContent = `等 ${roleInfo.name} 在手機上行動${acted ? '（已完成）' : ''}。`;
-      onePhaseActions.appendChild(note);
+      if (solo) {
+        oneSoloNightUI(step);
+      } else {
+        const roleInfo = oneRoleById(step.role);
+        const acted = oneSync.players.filter((player) => player.acted).length;
+        const note = document.createElement('p');
+        note.className = 'wolf-custom-summary';
+        note.textContent = `等 ${roleInfo.name} 在手機上行動${acted ? '（已完成）' : ''}。`;
+        onePhaseActions.appendChild(note);
+      }
     }
-    oneNextButton.hidden = false;
+    oneNextButton.hidden = hideNext;
     oneNextButton.innerHTML = oneNextLabel(step);
   }
 
@@ -4928,7 +5868,7 @@
       rank.textContent = pad(player.slot + 1);
       const name = document.createElement('span');
       name.className = 'wolf-target-name';
-      name.textContent = player.name + (player.slot === oneSync.mySlot ? '（你）' : '');
+      name.textContent = player.name + (player.slot === oneSync.mySlot && !oneSync.solo ? '（你）' : '');
       button.append(rank, name);
       button.addEventListener('click', () => {
         if (options.onPick) { options.onPick(player); return; }
@@ -5237,6 +6177,11 @@
   }
 
   $('#createOneRoomButton').addEventListener('click', createOneNightRoom);
+  const oneSoloWanted = initSoloToggle('onePlayMode', (solo) => {
+    $('#createOneRoomButton').innerHTML = solo ? '開始離線單機局 <span>📴</span>' : '建立一夜狼人房間 <span>↗</span>';
+    $('#oneOnlineCopy').hidden = solo;
+    $('#oneSoloCopy').hidden = !solo;
+  });
   endOneRoomButton.addEventListener('click', () => {
     resetOneNightSync();
     showToast('已結束遊戲');
@@ -5273,6 +6218,7 @@
   };
   const agentSync = {
     mode: 'local',      // 'local' | 'host' | 'client'
+    solo: false,        // 離線單機：不連 PeerJS、不發 QR,輪流傳手機
     code: '',
     peer: null,
     conns: [],
@@ -5294,6 +6240,7 @@
   const agentSetupPanel = $('#agentSetup');
   const agentHostPanel = $('#agentHost');
   const agentClientPanel = $('#agentClient');
+  const agentBadge = $('#agentBadge');
   const agentTheme = $('#agentTheme');
   const agentCustom = $('#agentCustom');
   const agentCustomWords = $('#agentCustomWords');
@@ -5313,6 +6260,13 @@
   const endAgentRoomButton = $('#endAgentRoomButton');
   const agentClientStatus = $('#agentClientStatus');
   const agentClientBody = $('#agentClientBody');
+  // 離線單機狀態:發任務進度、隊長答案卡開合。
+  let agentSoloDeal = { slot: 0, peeked: false };
+  let agentSoloPeekTeam = null;
+  function resetAgentSoloState() {
+    agentSoloDeal = { slot: 0, peeked: false };
+    agentSoloPeekTeam = null;
+  }
 
   function agentSpeak(text) {
     if (!agentSync.config || !agentSync.config.voice) return;
@@ -5349,7 +6303,8 @@
 
   function createAgentRoom() {
     if (agentSync.mode !== 'local') return;
-    if (typeof Peer === 'undefined') {
+    const solo = agentSoloWanted();
+    if (!solo && typeof Peer === 'undefined') {
       showToast('連線程式未載入,請確認網路後重整');
       return;
     }
@@ -5393,6 +6348,8 @@
       [roles[index], roles[swapIndex]] = [roles[swapIndex], roles[index]];
     }
     const code = makeRoomCode();
+    agentSync.solo = solo;
+    resetAgentSoloState();
     agentSync.code = code;
     agentSync.mySlot = 0;
     agentSync.conns = [];
@@ -5401,9 +6358,9 @@
       name: `玩家 ${index + 1}`,
       team: role.team,
       captain: role.captain,
-      joined: false,
+      joined: solo,
       ready: false,
-      online: false,
+      online: solo,
     }));
     agentSync.steps = agentBuildSteps();
     agentSync.stepIndex = 0;
@@ -5414,6 +6371,15 @@
     agentSync.winner = null;
     agentSync.lastReveal = null;
     agentSetMode('host');
+    if (solo) {
+      agentBadge.textContent = '離線單機';
+      agentUpdateStatus('離線單機 · 免網路、免 QR,輪流傳手機;螢幕保持常亮');
+      soloKeepScreenAwake();
+      agentQrGrid.hidden = true;
+      agentEnterStep();
+      return;
+    }
+    agentBadge.textContent = '房主';
     agentUpdateStatus('建立中…');
     agentQrGrid.hidden = true;
     agentPeerCreate(`${AGENT_HOST_PREFIX}${code.toLowerCase()}`);
@@ -5496,6 +6462,42 @@
     conn.on('error', () => removeAgentHostConn(conn));
   }
 
+  // 共用猜詞引擎:線上(隊員手機)與離線單機(主持人點棋盤)共用同一套翻牌/勝負邏輯。
+  function agentApplyGuess(index) {
+    agentSync.revealed.push({ index, color: agentColorAt(index) });
+    agentSync.lastReveal = { index, color: agentColorAt(index), word: agentSync.config.words[index] };
+    agentSync.guessesLeft = Math.max(0, agentSync.guessesLeft - 1);
+    agentSpeak(agentRevealVoice(agentSync.lastReveal));
+    const allRed = agentSync.config.key.red.every((i) => agentSync.revealed.some((entry) => entry.index === i));
+    const allBlue = agentSync.config.key.blue.every((i) => agentSync.revealed.some((entry) => entry.index === i));
+    if (agentColorAt(index) === 'assassin') {
+      agentSync.winner = agentSync.turn === 'red' ? 'blue' : 'red';
+      agentSync.turn = null;
+      agentEnterOver();
+    } else if (allRed) {
+      agentSync.winner = 'red';
+      agentSync.turn = null;
+      agentEnterOver();
+    } else if (allBlue) {
+      agentSync.winner = 'blue';
+      agentSync.turn = null;
+      agentEnterOver();
+    } else if (agentColorAt(index) !== agentSync.turn || agentSync.guessesLeft === 0) {
+      agentSwitchTurn();
+    }
+    broadcastAgentState();
+  }
+
+  // 離線單機:隊員喊詞,主持人點棋盤代翻。
+  function agentSoloGuess(index) {
+    if (agentSync.winner) { showToast('遊戲已結束'); return; }
+    if (agentSoloPeekTeam) { showToast('答案卡模式中,先收回答案卡再猜詞'); return; }
+    if (!agentSync.clue) { showToast('先等隊長說提示、主持人輸入'); return; }
+    if (agentSync.guessesLeft <= 0) { showToast('這回合不能再猜了,按「結束回合」換隊'); return; }
+    if (agentSync.revealed.some((entry) => entry.index === index)) return;
+    agentApplyGuess(index);
+  }
+
   function handleAgentHostMessage(conn, message) {
     if (!message || typeof message !== 'object') return;
     if (message.type === 'hello') {
@@ -5529,28 +6531,7 @@
       if (!agentSync.clue || agentSync.guessesLeft <= 0) return;
       const index = clamp(Math.floor(Number(message.index)), 0, 24);
       if (agentSync.revealed.some((entry) => entry.index === index)) return;
-      agentSync.revealed.push({ index, color: agentColorAt(index) });
-      agentSync.lastReveal = { index, color: agentColorAt(index), word: agentSync.config.words[index] };
-      agentSync.guessesLeft = Math.max(0, agentSync.guessesLeft - 1);
-      agentSpeak(agentRevealVoice(agentSync.lastReveal));
-      const allRed = agentSync.config.key.red.every((i) => agentSync.revealed.some((entry) => entry.index === i));
-      const allBlue = agentSync.config.key.blue.every((i) => agentSync.revealed.some((entry) => entry.index === i));
-      if (agentColorAt(index) === 'assassin') {
-        agentSync.winner = agentSync.turn === 'red' ? 'blue' : 'red';
-        agentSync.turn = null;
-        agentEnterOver();
-      } else if (allRed) {
-        agentSync.winner = 'red';
-        agentSync.turn = null;
-        agentEnterOver();
-      } else if (allBlue) {
-        agentSync.winner = 'blue';
-        agentSync.turn = null;
-        agentEnterOver();
-      } else if (agentColorAt(index) !== agentSync.turn || agentSync.guessesLeft === 0) {
-        agentSwitchTurn();
-      }
-      broadcastAgentState();
+      agentApplyGuess(index);
     }
   }
 
@@ -5566,6 +6547,7 @@
     agentSync.turn = agentSync.turn === 'red' ? 'blue' : 'red';
     agentSync.clue = null;
     agentSync.guessesLeft = 0;
+    agentSoloPeekTeam = null;
   }
 
   function agentEnterOver() {
@@ -5574,6 +6556,7 @@
       agentSync.steps[overIndex].voice = `${agentSync.winner === 'red' ? '紅隊' : '藍隊'}獲勝!`;
       agentSync.stepIndex = overIndex;
     }
+    agentSoloPeekTeam = null;
     agentEnterStep();
   }
 
@@ -5609,6 +6592,10 @@
     agentSync.winner = null;
     agentSync.lastReveal = null;
     agentSync.myKey = null;
+    if (agentSync.solo) soloAllowScreenSleep();
+    agentSync.solo = false;
+    resetAgentSoloState();
+    agentBadge.textContent = '房主';
     agentSetMode('local');
   }
 
@@ -5729,8 +6716,9 @@
     }
     agentSync.players.forEach((player) => { player.ready = false; });
     if (agentSync.mode === 'host') {
+      const copy = agentSoloStepCopy(step);
       agentPhaseLabel.textContent = step.label || '';
-      agentPhaseTitle.textContent = step.title || '';
+      agentPhaseTitle.textContent = copy && copy.title ? copy.title : (step.title || '');
       renderAgentPhaseHint();
       renderAgentHostView();
       agentSpeak(step.voice || '');
@@ -5792,6 +6780,29 @@
     const step = agentSync.steps[agentSync.stepIndex] || null;
     const stepId = step ? step.id : '';
     const ready = agentSync.players.filter((player) => player.ready).length;
+    // 離線發任務中手機會傳到每個人手上,隊伍先藏起來,發完才顯示。
+    const dealing = agentSync.solo && stepId === 'reveal' && agentSoloDeal.slot < agentSync.players.length;
+    if (dealing) {
+      left.textContent = `發任務中 · ${agentSoloDeal.slot}/${agentSync.players.length} 已看牌`;
+      heading.appendChild(left);
+      agentRoster.appendChild(heading);
+      agentSync.players.forEach((player, index) => {
+        const row = document.createElement('div');
+        row.className = 'wolf-player';
+        const rank = document.createElement('span');
+        rank.className = 'wolf-player-rank';
+        rank.textContent = pad(index + 1);
+        const name = document.createElement('strong');
+        name.className = 'wolf-player-name';
+        name.textContent = player.name;
+        const status = document.createElement('span');
+        status.className = 'wolf-player-role';
+        status.textContent = index < agentSoloDeal.slot ? '✅ 已看牌' : '🂠 待看牌';
+        row.append(rank, name, status);
+        agentRoster.appendChild(row);
+      });
+      return;
+    }
     left.textContent = `玩家與身份${stepId === 'reveal' ? ` · 已確認 ${ready}/${agentSync.players.length}` : ''}`;
     heading.appendChild(left);
     agentRoster.appendChild(heading);
@@ -5812,11 +6823,88 @@
     });
   }
 
+  // 離線單機時的標題/提示文案。
+  function agentSoloStepCopy(step) {
+    if (!agentSync.solo || !step) return null;
+    if (step.id === 'reveal') {
+      return { title: '傳手機發任務', hint: '把手機輪流傳給每位玩家:看隊伍與身份(隊長會看到答案卡),蓋牌後傳下一位。' };
+    }
+    return null;
+  }
+
+  // ---- 離線單機:傳手機發任務 ----
+  function agentSoloDealUI() {
+    const total = agentSync.players.length;
+    const dealt = Math.min(agentSoloDeal.slot, total);
+    if (dealt >= total) {
+      agentPhaseActions.appendChild(soloProgressNote(`✅ ${total} 人都看過任務了,手機交回主持人。`));
+      return;
+    }
+    const player = agentSync.players[dealt];
+    if (!agentSoloDeal.peeked) {
+      agentPhaseActions.appendChild(soloProgressNote(`傳手機發任務 · 第 ${dealt + 1}/${total} 位`));
+      const card = soloHandoffCard('請把手機交給', `${pad(dealt + 1)} ${player.name}`, '本人拿起手機後,點這張黑牌看任務');
+      card.addEventListener('click', () => {
+        agentSoloDeal.peeked = true;
+        renderAgentPhaseActions();
+      });
+      agentPhaseActions.appendChild(card);
+      return;
+    }
+    const reveal = document.createElement('div');
+    reveal.className = 'wolf-reveal';
+    const emoji = document.createElement('div');
+    emoji.className = 'wolf-reveal-emoji';
+    emoji.textContent = player.team === 'red' ? '🔴' : '🔵';
+    const label = document.createElement('span');
+    label.className = 'wolf-phase-label';
+    label.textContent = `${player.name} · 你的任務`;
+    const title = document.createElement('strong');
+    title.className = 'wolf-client-role-name';
+    title.textContent = `${agentTeamName(player.team)} ${player.captain ? '隊長' : '隊員'}`;
+    const desc = document.createElement('p');
+    desc.className = 'role-desc';
+    desc.textContent = player.captain
+      ? '你是指揮官!記住下面的答案卡(紅 9 / 藍 8 / 中立 7 / 💣 炸彈 1),蓋牌後靠記憶給提示。'
+      : '你是探員,看不到答案卡。聽隊長的提示猜詞,別碰炸彈!';
+    reveal.append(emoji, label, title, desc);
+    agentPhaseActions.appendChild(reveal);
+    if (player.captain) {
+      const keyNote = document.createElement('p');
+      keyNote.className = 'wolf-custom-summary';
+      keyNote.textContent = '⬇ 答案卡只有你看得到,記好後蓋牌!';
+      agentPhaseActions.appendChild(keyNote);
+      agentPhaseActions.appendChild(agentBuildGrid({ showKey: true, key: agentSync.config.key }));
+    }
+    agentPhaseActions.appendChild(soloNameEditor(player, dealt, () => { broadcastAgentState(); }));
+    const action = document.createElement('div');
+    action.className = 'wolf-action';
+    const done = document.createElement('button');
+    done.className = 'button button-primary button-large';
+    done.type = 'button';
+    done.innerHTML = dealt + 1 >= total ? '看完了,交回主持人 <span>▣</span>' : '看完了,蓋牌給下一位 <span>▣</span>';
+    done.addEventListener('click', () => {
+      player.ready = true;
+      agentSoloDeal.slot = dealt + 1;
+      agentSoloDeal.peeked = false;
+      renderAgentPhaseActions();
+      renderAgentRoster();
+    });
+    action.appendChild(done);
+    agentPhaseActions.appendChild(action);
+  }
+
   function renderAgentPhaseActions() {
     agentPhaseActions.replaceChildren();
     const step = agentSync.steps[agentSync.stepIndex] || null;
     if (!step) return;
     if (step.id === 'reveal') {
+      if (agentSync.solo) {
+        agentSoloDealUI();
+        agentNextButton.hidden = agentSoloDeal.slot < agentSync.players.length;
+        agentNextButton.innerHTML = '開始遊戲 <span>🕴️</span>';
+        return;
+      }
       const confirmed = agentSync.players.filter((player) => player.ready).length;
       const note = document.createElement('p');
       note.className = 'wolf-custom-summary';
@@ -5836,6 +6924,34 @@
       title.textContent = `${turnName}回合`;
       title.style.display = 'block';
       agentPhaseActions.appendChild(title);
+      if (agentSync.solo) {
+        // 隊長答案卡:點一下攤開(拿給該隊隊長看),再點一下收回。
+        const peekRow = document.createElement('div');
+        peekRow.className = 'solo-row solo-peek-row';
+        ['red', 'blue'].forEach((team) => {
+          const button = wolfOptionButton(
+            `👁️ ${team === 'red' ? '紅' : '藍'}隊長看答案卡`,
+            () => {
+              agentSoloPeekTeam = agentSoloPeekTeam === team ? null : team;
+              renderAgentHostView();
+            },
+            agentSoloPeekTeam === team,
+          );
+          peekRow.appendChild(button);
+        });
+        agentPhaseActions.appendChild(peekRow);
+        if (agentSoloPeekTeam) {
+          const warning = document.createElement('p');
+          warning.className = 'wolf-custom-summary';
+          warning.textContent = `⚠️ 答案卡模式:把手機拿給${agentSoloPeekTeam === 'red' ? '紅' : '藍'}隊長看,看完記得點按鈕收回。`;
+          agentPhaseActions.appendChild(warning);
+        } else {
+          const how = document.createElement('p');
+          how.className = 'wolf-custom-summary';
+          how.textContent = '隊員喊出要猜的詞,主持人點下方棋盤代翻。';
+          agentPhaseActions.appendChild(how);
+        }
+      }
       if (agentSync.clue) {
         const banner = document.createElement('p');
         banner.className = 'wolf-custom-summary';
@@ -5914,7 +7030,17 @@
     if (step && (step.id === 'play' || step.id === 'over')) {
       agentHostGrid.hidden = false;
       agentHostGrid.replaceChildren();
-      agentHostGrid.appendChild(agentBuildGrid({ showKey: true, key: agentSync.config.key }));
+      if (agentSync.solo) {
+        if (agentSoloPeekTeam) {
+          // 答案卡模式:只給該隊隊長看,其他人別看,看完收回。
+          agentHostGrid.appendChild(agentBuildGrid({ showKey: true, key: agentSync.config.key }));
+        } else {
+          // 公開棋盤:隊員喊詞,主持人點詞代翻。
+          agentHostGrid.appendChild(agentBuildGrid({ onTap: (index) => agentSoloGuess(index) }));
+        }
+      } else {
+        agentHostGrid.appendChild(agentBuildGrid({ showKey: true, key: agentSync.config.key }));
+      }
     } else {
       agentHostGrid.hidden = true;
     }
@@ -6094,6 +7220,11 @@
     agentCustom.hidden = agentTheme.value !== 'custom';
   });
   $('#createAgentRoomButton').addEventListener('click', createAgentRoom);
+  const agentSoloWanted = initSoloToggle('agentPlayMode', (solo) => {
+    $('#createAgentRoomButton').innerHTML = solo ? '開始離線單機局 <span>📴</span>' : '建立機密特務房間 <span>↗</span>';
+    $('#agentOnlineCopy').hidden = solo;
+    $('#agentSoloCopy').hidden = !solo;
+  });
   endAgentRoomButton.addEventListener('click', () => {
     resetAgentSync();
     showToast('已結束遊戲');

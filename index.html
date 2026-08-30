@@ -416,7 +416,8 @@
                 <h4>建立狼人殺房間</h4>
               </div>
             </div>
-            <p class="sync-copy">選好<strong>版本</strong>、再微調<strong>各角色人數</strong>後建立房間,<strong>每個人掃自己的 QR</strong> 就會在手機上收到秘密角色;這部裝置是主持人(上帝視角)。</p>
+            <p class="sync-copy" id="wolfOnlineCopy">選好<strong>版本</strong>、再微調<strong>各角色人數</strong>後建立房間,<strong>每個人掃自己的 QR</strong> 就會在手機上收到秘密角色;這部裝置是主持人(上帝視角)。</p>
+            <p class="sync-copy" id="wolfSoloCopy" hidden><strong>離線單機</strong>:不需網路、不掃 QR。建立後<strong>輪流傳手機</strong>看秘密身份;夜晚本人比手勢、主持人代點;白天投票玩家用手指比、主持人點黑卡收票,自動計票。全場只要這一台手機。</p>
             <div class="wolf-step"><span class="wolf-step-no">STEP 1</span><strong>選擇版本</strong><small>四種版本 · 適配不同人數</small></div>
             <div class="wolf-preset-list" id="wolfPresetList" role="group" aria-label="版本選擇"></div>
             <div class="wolf-custom" id="wolfCustom" hidden></div>
@@ -431,6 +432,10 @@
               <p>勝利:所有狼人被放逐 → 好人贏;存活的好人 ≤ 狼人 → 狼人贏。</p>
               <p>角色:🔮 預言家(查驗身份)🧪 女巫(解藥救 / 毒藥殺)🛡️ 守衛(每夜保護一人)🔫 獵人(死時開槍帶走一人)🙃 白痴(被放逐時翻牌免死)。</p>
             </details>
+            <div class="solo-mode-row" id="wolfPlayMode" role="group" aria-label="連線方式">
+              <button type="button" class="solo-mode-option is-selected" data-playmode="online"><strong>📱 掃 QR 連線</strong><small>每人一機 · 需網路</small></button>
+              <button type="button" class="solo-mode-option" data-playmode="solo"><strong>📴 離線單機</strong><small>輪流傳手機 · 免網路</small></button>
+            </div>
             <button class="button button-dark sync-create-button" id="createWolfRoomButton" type="button">建立狼人殺房間 <span>↗</span></button>
           </div>
 
@@ -493,7 +498,8 @@
                 <h4>建立誰是臥底房間</h4>
               </div>
             </div>
-            <p class="sync-copy">選好<strong>玩法</strong>與<strong>主題</strong>後建立房間,<strong>每人掃自己的 QR</strong> 就會在手機上收到秘密詞;這部裝置是主持人。</p>
+            <p class="sync-copy" id="spyOnlineCopy">選好<strong>玩法</strong>與<strong>主題</strong>後建立房間,<strong>每人掃自己的 QR</strong> 就會在手機上收到秘密詞;這部裝置是主持人。</p>
+            <p class="sync-copy" id="spySoloCopy" hidden><strong>離線單機</strong>:不需網路、不掃 QR。建立後<strong>輪流傳手機</strong>看自己的詞;討論計時照常,投票由玩家比手勢、主持人點黑卡收票,自動揭曉。全場只要這一台手機。</p>
             <div class="wolf-step"><span class="wolf-step-no">STEP 1</span><strong>選擇玩法</strong><small>兩種版本 · 不同規則</small></div>
             <div class="wolf-preset-list" id="spyModeList" role="group" aria-label="玩法選擇"></div>
             <div class="spy-settings">
@@ -541,6 +547,10 @@
               <p>勝利:被投出的是臥底 → 平民贏;沒抓到(或抓到平民)→ 臥底贏。</p>
               <p>「間諜危機」版本:平民共用一個地點詞,間諜不知道詞,只能靠問答找破綻。</p>
             </details>
+            <div class="solo-mode-row" id="spyPlayMode" role="group" aria-label="連線方式">
+              <button type="button" class="solo-mode-option is-selected" data-playmode="online"><strong>📱 掃 QR 連線</strong><small>每人一機 · 需網路</small></button>
+              <button type="button" class="solo-mode-option" data-playmode="solo"><strong>📴 離線單機</strong><small>輪流傳手機 · 免網路</small></button>
+            </div>
             <button class="button button-dark sync-create-button" id="createSpyRoomButton" type="button">建立誰是臥底房間 <span>↗</span></button>
           </div>
 
@@ -603,7 +613,8 @@
                 <h4>建立一夜狼人房間</h4>
               </div>
             </div>
-            <p class="sync-copy">選好<strong>版本</strong>、再微調<strong>各角色人數</strong>後建立房間,<strong>每人掃自己的 QR</strong> 收到秘密身份;這部裝置是主持人。</p>
+            <p class="sync-copy" id="oneOnlineCopy">選好<strong>版本</strong>、再微調<strong>各角色人數</strong>後建立房間,<strong>每人掃自己的 QR</strong> 收到秘密身份;這部裝置是主持人。</p>
+            <p class="sync-copy" id="oneSoloCopy" hidden><strong>離線單機</strong>:不需網路、不掃 QR。建立後<strong>輪流傳手機</strong>看身份;夜晚查驗/換牌由主持人代點、結果只給當事人看;投票比手勢代收,自動揭曉。全場只要這一台手機。</p>
             <div class="wolf-step"><span class="wolf-step-no">STEP 1</span><strong>選擇版本</strong><small>四種版本 · 適配不同人數</small></div>
             <div class="wolf-preset-list" id="onePresetList" role="group" aria-label="版本選擇"></div>
             <div class="wolf-custom" id="oneCustom" hidden></div>
@@ -617,6 +628,10 @@
               <p>天亮後:看手機上的「最終身份」——你的角色可能已經在夜裡被換走了!</p>
               <p>討論 → 投票:被投出的人現在是狼人 → 好人贏;投錯、平票或無人被投出 → 狼人贏。</p>
             </details>
+            <div class="solo-mode-row" id="onePlayMode" role="group" aria-label="連線方式">
+              <button type="button" class="solo-mode-option is-selected" data-playmode="online"><strong>📱 掃 QR 連線</strong><small>每人一機 · 需網路</small></button>
+              <button type="button" class="solo-mode-option" data-playmode="solo"><strong>📴 離線單機</strong><small>輪流傳手機 · 免網路</small></button>
+            </div>
             <button class="button button-dark sync-create-button" id="createOneRoomButton" type="button">建立一夜狼人房間 <span>↗</span></button>
           </div>
 
@@ -679,7 +694,8 @@
                 <h4>建立機密特務房間</h4>
               </div>
             </div>
-            <p class="sync-copy">選好<strong>詞庫</strong>與<strong>人數</strong>後建立房間,<strong>每人掃自己的 QR</strong> 就知道自己的隊伍與身份;只有隊長的手機看得到答案卡,這部裝置是主持人。</p>
+            <p class="sync-copy" id="agentOnlineCopy">選好<strong>詞庫</strong>與<strong>人數</strong>後建立房間,<strong>每人掃自己的 QR</strong> 就知道自己的隊伍與身份;只有隊長的手機看得到答案卡,這部裝置是主持人。</p>
+            <p class="sync-copy" id="agentSoloCopy" hidden><strong>離線單機</strong>:不需網路、不掃 QR。建立後<strong>輪流傳手機</strong>看隊伍(隊長會看到答案卡,記好後蓋牌);遊戲中隊長隨時可以「看答案卡」,隊員喊詞、主持人點棋盤代翻。全場只要這一台手機。</p>
             <div class="spy-settings">
               <label class="spy-field">詞庫
                 <select id="agentTheme">
@@ -729,6 +745,10 @@
               <p>隊員最多猜 N+1 個詞:猜中自己隊的詞 → 繼續;猜中中立或對方詞 → 回合結束換隊;猜中💣炸彈 → 直接輸。</p>
               <p>勝利:先翻完自己全部 9 個詞的隊伍獲勝;也可以約定玩到有人按「結束回合」比剩餘詞數。</p>
             </details>
+            <div class="solo-mode-row" id="agentPlayMode" role="group" aria-label="連線方式">
+              <button type="button" class="solo-mode-option is-selected" data-playmode="online"><strong>📱 掃 QR 連線</strong><small>每人一機 · 需網路</small></button>
+              <button type="button" class="solo-mode-option" data-playmode="solo"><strong>📴 離線單機</strong><small>輪流傳手機 · 免網路</small></button>
+            </div>
             <button class="button button-dark sync-create-button" id="createAgentRoomButton" type="button">建立機密特務房間 <span>↗</span></button>
           </div>
 
