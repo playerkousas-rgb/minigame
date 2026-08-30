@@ -66,6 +66,22 @@
             <span class="tab-number">03</span>
             <span>隨手工具</span>
           </button>
+          <button class="mode-tab" id="tab-wolf" type="button" role="tab" aria-selected="false" aria-controls="view-wolf" data-view="wolf">
+            <span class="tab-number">04</span>
+            <span>狼人殺</span>
+          </button>
+          <button class="mode-tab" id="tab-spy" type="button" role="tab" aria-selected="false" aria-controls="view-spy" data-view="spy">
+            <span class="tab-number">05</span>
+            <span>誰是臥底</span>
+          </button>
+          <button class="mode-tab" id="tab-one" type="button" role="tab" aria-selected="false" aria-controls="view-one" data-view="one">
+            <span class="tab-number">06</span>
+            <span>一夜狼人</span>
+          </button>
+          <button class="mode-tab" id="tab-agent" type="button" role="tab" aria-selected="false" aria-controls="view-agent" data-view="agent">
+            <span class="tab-number">07</span>
+            <span>機密特務</span>
+          </button>
         </nav>
 
         <section class="app-view is-active" id="view-dice" role="tabpanel" aria-labelledby="tab-dice">
@@ -73,7 +89,7 @@
             <div>
               <p class="section-kicker">SHAKE TO ROLL</p>
               <h2>大話骰 / 骰子工具</h2>
-              <p>設定好數量與面數，搖一搖才會換出下一組數字。骰面平常保持全黑，按住才偷看。</p>
+              <p>設定好數量與面數，搖一搖才會換出下一組數字。骰面平常保持全黑，按住才偷看；想和一群人同擲一局，就在下方建立多人骰子房間。</p>
             </div>
             <div class="round-counter" aria-live="polite">
               <span class="counter-label">本局</span>
@@ -83,7 +99,11 @@
           </div>
 
           <div class="dice-panel panel-surface">
-            <div class="dice-controls" aria-label="骰子設定">
+            <div class="room-settings-note" id="roomSettingsNote" hidden>
+              <span aria-hidden="true">⚄</span>
+              <span>房間設定：<strong id="roomSettingsText">5 顆 D6</strong> · 由房主控制</span>
+            </div>
+            <div class="dice-controls" id="diceControls" aria-label="骰子設定">
               <div class="control-block">
                 <label for="diceCount">骰子數量</label>
                 <div class="stepper">
@@ -114,7 +134,7 @@
               <div class="dice-grid" id="diceGrid"></div>
               <div class="press-hint" id="diceInstruction">
                 <span class="hint-lock" aria-hidden="true">▣</span>
-                <span>按住查看結果</span>
+                <span id="diceInstructionText">按住查看結果</span>
               </div>
             </div>
 
@@ -138,11 +158,61 @@
             </div>
           </div>
 
+          <div class="dice-sync panel-surface" id="diceSync">
+            <div class="sync-heading">
+              <div class="sync-icon dice-sync-icon" aria-hidden="true">⚄</div>
+              <div class="sync-heading-copy">
+                <p class="tool-card-kicker">MULTI-DEVICE DICE</p>
+                <h4>多人骰子房間</h4>
+              </div>
+              <span class="sync-badge dice-sync-badge" id="diceSyncBadge">本機</span>
+            </div>
+
+            <div class="sync-idle" id="diceSyncIdle">
+              <p class="sync-copy">一人一機：建立骰子房間後，<strong>其他人</strong>用手機掃各自的 QR Code 加入。誰搖手機，骰子就會同步出現在每個人的桌上——大富翁、蛇梯棋、大話骰都能玩。這個裝置是「玩家 1」。</p>
+              <div class="dice-room-setup">
+                <div class="setup-inline-row">
+                  <label for="diceRoomPlayers">玩家人數</label>
+                  <input class="mini-number" id="diceRoomPlayers" type="number" min="2" max="12" value="4" inputmode="numeric" />
+                  <span class="setup-suffix">人（含自己）</span>
+                </div>
+                <div class="dice-room-mode-row">
+                  <span class="control-label">骰面顯示</span>
+                  <div class="preset-buttons" role="group" aria-label="骰面顯示模式">
+                    <button class="preset-button is-selected" type="button" data-dice-privacy="public">公開</button>
+                    <button class="preset-button" type="button" data-dice-privacy="hidden">隱藏（大話骰）</button>
+                  </div>
+                </div>
+              </div>
+              <button class="button button-dark sync-create-button" id="createDiceRoomButton" type="button">建立骰子房間 <span>↗</span></button>
+            </div>
+
+            <div class="sync-status dice-sync-status" id="diceSyncStatus" aria-live="polite" hidden></div>
+            <div class="qr-grid" id="diceQrGrid" hidden></div>
+
+            <div class="dice-live" id="diceLive" hidden>
+              <div class="dice-room-bar" id="diceRoomBar" hidden>
+                <div class="preset-buttons dice-privacy-toggle" role="group" aria-label="骰面顯示模式">
+                  <button class="preset-button is-selected" type="button" data-dice-privacy="public">公開</button>
+                  <button class="preset-button" type="button" data-dice-privacy="hidden">隱藏</button>
+                </div>
+                <button class="button button-quiet" id="rerollAllButton" type="button">新回合 · 全部重骰 <span>↺</span></button>
+              </div>
+              <div class="dice-table" id="diceTable"></div>
+            </div>
+
+            <div class="sync-footnote" id="diceSyncFootnote" hidden>
+              <span aria-hidden="true">i</span>
+              <span>連線骰子需要網路（透過 PeerJS 點對點傳輸）；離線時仍可使用上方的單機骰子。</span>
+            </div>
+            <button class="text-button" id="endDiceRoomButton" type="button" hidden>結束房間 <span>↺</span></button>
+          </div>
+
           <div class="tip-grid">
             <article class="tip-card">
               <span class="tip-index">01</span>
               <h3>大話骰</h3>
-              <p>把手機放桌上，輪流搖動；按住骰面只讓自己看見數字。</p>
+              <p>建立骰子房間並切到「隱藏」模式，每人搖自己的手機，按住骰面只讓自己看見數字。</p>
             </article>
             <article class="tip-card">
               <span class="tip-index">02</span>
@@ -325,6 +395,381 @@
                 <button class="button button-quiet" id="timerResetButton" type="button">重設</button>
               </div>
             </article>
+          </div>
+        </section>
+        <section class="app-view" id="view-wolf" role="tabpanel" aria-labelledby="tab-wolf" hidden>
+          <div class="section-heading">
+            <div>
+              <p class="section-kicker">WHO'S THE WOLF</p>
+              <h2>狼人殺</h2>
+              <p>一人一機秘密發牌,手機就是你的角色卡。主持人一鍵引導夜晚流程,白天全場用手機投票。</p>
+            </div>
+            <div class="tool-count-badge"><span>2</span><small>種主持模式</small></div>
+          </div>
+
+          <!-- Setup -->
+          <div class="wolf-panel panel-surface" id="wolfSetup">
+            <div class="sync-heading">
+              <div class="sync-icon wolf-sync-icon" aria-hidden="true">🐺</div>
+              <div class="sync-heading-copy">
+                <p class="tool-card-kicker">SECRET ROLES</p>
+                <h4>建立狼人殺房間</h4>
+              </div>
+            </div>
+            <p class="sync-copy">選好<strong>版本</strong>、再微調<strong>各角色人數</strong>後建立房間,<strong>每個人掃自己的 QR</strong> 就會在手機上收到秘密角色;這部裝置是主持人(上帝視角)。</p>
+            <div class="wolf-step"><span class="wolf-step-no">STEP 1</span><strong>選擇版本</strong><small>四種版本 · 適配不同人數</small></div>
+            <div class="wolf-preset-list" id="wolfPresetList" role="group" aria-label="版本選擇"></div>
+            <div class="wolf-custom" id="wolfCustom" hidden></div>
+            <div class="wolf-voice-row">
+              <label><input type="checkbox" id="wolfVoiceToggle" checked /> 語音導播(用語音唸出每一步流程)</label>
+            </div>
+            <details class="game-rules">
+              <summary>📖 狼人殺怎麼玩?</summary>
+              <p>遊戲分兩大陣營:狼人隊 vs 好人隊(神職 + 村民)。</p>
+              <p>夜晚:主持人按「下一步」,狼人、守衛、女巫、預言家會輪流在自己手機上行動,其他人把手機蓋在桌上。</p>
+              <p>白天:大家討論昨晚的線索,然後手機投票放逐一名玩家;被放逐的人可以說遺言。</p>
+              <p>勝利:所有狼人被放逐 → 好人贏;存活的好人 ≤ 狼人 → 狼人贏。</p>
+              <p>角色:🔮 預言家(查驗身份)🧪 女巫(解藥救 / 毒藥殺)🛡️ 守衛(每夜保護一人)🔫 獵人(死時開槍帶走一人)🙃 白痴(被放逐時翻牌免死)。</p>
+            </details>
+            <button class="button button-dark sync-create-button" id="createWolfRoomButton" type="button">建立狼人殺房間 <span>↗</span></button>
+          </div>
+
+          <!-- Host / moderator -->
+          <div class="wolf-panel panel-surface" id="wolfHost" hidden>
+            <div class="sync-heading">
+              <div class="sync-icon wolf-sync-icon" aria-hidden="true">🐺</div>
+              <div class="sync-heading-copy">
+                <p class="tool-card-kicker">MODERATOR · 貓紙模式</p>
+                <h4>主持人面板</h4>
+              </div>
+              <span class="sync-badge wolf-sync-badge" id="wolfBadge">房主</span>
+            </div>
+            <div class="sync-status wolf-status" id="wolfStatus" aria-live="polite"></div>
+            <div class="qr-grid" id="wolfQrGrid" hidden></div>
+            <div class="wolf-roster" id="wolfRoster" aria-label="玩家與身份"></div>
+            <div class="wolf-control" id="wolfControl" hidden>
+              <div class="wolf-phase" id="wolfPhaseCard">
+                <span class="wolf-phase-label" id="wolfPhaseLabel">準備中</span>
+                <strong id="wolfPhaseTitle">等大家加入</strong>
+                <p id="wolfPhaseHint"></p>
+              </div>
+              <div class="wolf-phase-actions" id="wolfPhaseActions"></div>
+              <button class="button button-primary button-large" id="wolfNextButton" type="button" hidden>下一步 <span>↗</span></button>
+            </div>
+            <button class="text-button" id="endWolfRoomButton" type="button" hidden>結束遊戲 <span>↺</span></button>
+          </div>
+
+          <!-- Client -->
+          <div class="wolf-panel panel-surface" id="wolfClient" hidden>
+            <div class="sync-heading">
+              <div class="sync-icon wolf-sync-icon" aria-hidden="true">🐺</div>
+              <div class="sync-heading-copy">
+                <p class="tool-card-kicker">YOUR ROLE</p>
+                <h4>你的身份</h4>
+              </div>
+              <span class="sync-badge wolf-sync-badge" id="wolfClientBadge">已連線</span>
+            </div>
+            <div class="sync-status wolf-status" id="wolfClientStatus" aria-live="polite">正在連線…</div>
+            <div id="wolfClientBody"></div>
+          </div>
+        </section>
+
+        <section class="app-view" id="view-spy" role="tabpanel" aria-labelledby="tab-spy" hidden>
+          <div class="section-heading">
+            <div>
+              <p class="section-kicker">WHO'S THE SPY</p>
+              <h2>誰是臥底 / 間諜危機</h2>
+              <p>一人一機秘密發詞。大家輪流描述自己的詞,臥底要藏好自己;投票、揭曉,抓出內鬼。</p>
+            </div>
+            <div class="tool-count-badge"><span>2</span><small>種玩法</small></div>
+          </div>
+
+          <!-- Setup -->
+          <div class="wolf-panel panel-surface" id="spySetup">
+            <div class="sync-heading">
+              <div class="sync-icon wolf-sync-icon" aria-hidden="true">🕵️</div>
+              <div class="sync-heading-copy">
+                <p class="tool-card-kicker">SECRET WORDS</p>
+                <h4>建立誰是臥底房間</h4>
+              </div>
+            </div>
+            <p class="sync-copy">選好<strong>玩法</strong>與<strong>主題</strong>後建立房間,<strong>每人掃自己的 QR</strong> 就會在手機上收到秘密詞;這部裝置是主持人。</p>
+            <div class="wolf-step"><span class="wolf-step-no">STEP 1</span><strong>選擇玩法</strong><small>兩種版本 · 不同規則</small></div>
+            <div class="wolf-preset-list" id="spyModeList" role="group" aria-label="玩法選擇"></div>
+            <div class="spy-settings">
+              <label class="spy-field">主題
+                <select id="spyTheme">
+                  <option value="party">派對</option>
+                  <option value="food">飲食</option>
+                  <option value="life">生活</option>
+                  <option value="work">職場</option>
+                  <option value="travel">旅遊</option>
+                  <option value="tech">科技生活</option>
+                  <option value="people">人物身份</option>
+                  <option value="animal">動物</option>
+                  <option value="entertain">娛樂影視</option>
+                  <option value="nature">自然天氣</option>
+                  <option value="school">學校</option>
+                  <option value="health">健康</option>
+                  <option value="custom">自訂</option>
+                </select>
+              </label>
+              <label class="spy-field">玩家人數
+                <select id="spyCount">
+                  <option>4</option><option>5</option><option selected>6</option><option>7</option><option>8</option><option>9</option><option>10</option><option>11</option><option>12</option>
+                </select>
+              </label>
+              <label class="spy-field">臥底人數
+                <select id="spySpies"><option selected>1</option><option>2</option></select>
+              </label>
+              <label class="spy-field">討論時間
+                <select id="spyMinutes"><option value="2">2 分鐘</option><option value="3" selected>3 分鐘</option><option value="5">5 分鐘</option></select>
+              </label>
+            </div>
+            <div class="spy-custom" id="spyCustom" hidden>
+              <input id="spyCustomWord" type="text" maxlength="12" autocomplete="off" placeholder="平民詞(大家都會看到這個詞)" />
+              <input id="spyCustomSpyWord" type="text" maxlength="12" autocomplete="off" placeholder="臥底詞(留空 = 臥底不知道詞)" />
+            </div>
+            <div class="wolf-voice-row">
+              <label><input type="checkbox" id="spyVoiceToggle" checked /> 語音導播(用語音唸出每一步流程)</label>
+            </div>
+            <details class="game-rules">
+              <summary>📖 誰是臥底怎麼玩?</summary>
+              <p>每人手機收到一個秘密詞,大部分人是同一個詞(平民),少數人拿到相似詞(臥底)。</p>
+              <p>大家輪流描述自己的詞,不能直接講出關鍵字;臥底要想辦法說得差不多,又不被發現。</p>
+              <p>討論結束後,每人手機投票,投出你認為是臥底的人。</p>
+              <p>勝利:被投出的是臥底 → 平民贏;沒抓到(或抓到平民)→ 臥底贏。</p>
+              <p>「間諜危機」版本:平民共用一個地點詞,間諜不知道詞,只能靠問答找破綻。</p>
+            </details>
+            <button class="button button-dark sync-create-button" id="createSpyRoomButton" type="button">建立誰是臥底房間 <span>↗</span></button>
+          </div>
+
+          <!-- Host / moderator -->
+          <div class="wolf-panel panel-surface" id="spyHost" hidden>
+            <div class="sync-heading">
+              <div class="sync-icon wolf-sync-icon" aria-hidden="true">🕵️</div>
+              <div class="sync-heading-copy">
+                <p class="tool-card-kicker">MODERATOR · 主持面板</p>
+                <h4>主持人面板</h4>
+              </div>
+              <span class="sync-badge wolf-sync-badge" id="spyBadge">房主</span>
+            </div>
+            <div class="sync-status wolf-status" id="spyStatus" aria-live="polite"></div>
+            <div class="qr-grid" id="spyQrGrid" hidden></div>
+            <div class="wolf-roster" id="spyRoster" aria-label="玩家狀態"></div>
+            <div class="wolf-control" id="spyControl" hidden>
+              <div class="wolf-phase" id="spyPhaseCard">
+                <span class="wolf-phase-label" id="spyPhaseLabel">準備中</span>
+                <strong id="spyPhaseTitle">等大家加入</strong>
+                <p id="spyPhaseHint"></p>
+              </div>
+              <div class="wolf-phase-actions" id="spyPhaseActions"></div>
+              <button class="button button-primary button-large" id="spyNextButton" type="button" hidden>下一步 <span>↗</span></button>
+            </div>
+            <button class="text-button" id="endSpyRoomButton" type="button" hidden>結束遊戲 <span>↺</span></button>
+          </div>
+
+          <!-- Client -->
+          <div class="wolf-panel panel-surface" id="spyClient" hidden>
+            <div class="sync-heading">
+              <div class="sync-icon wolf-sync-icon" aria-hidden="true">🕵️</div>
+              <div class="sync-heading-copy">
+                <p class="tool-card-kicker">YOUR WORD</p>
+                <h4>你的詞</h4>
+              </div>
+              <span class="sync-badge wolf-sync-badge" id="spyClientBadge">已連線</span>
+            </div>
+            <div class="sync-status wolf-status" id="spyClientStatus" aria-live="polite">正在連線…</div>
+            <div id="spyClientBody"></div>
+          </div>
+        </section>
+
+        <section class="app-view" id="view-one" role="tabpanel" aria-labelledby="tab-one" hidden>
+          <div class="section-heading">
+            <div>
+              <p class="section-kicker">ONE NIGHT</p>
+              <h2>一夜狼人</h2>
+              <p>一晚定勝負的快節奏狼人殺。天黑時角色會互換,天亮後靠推理投票,揪出現在真正的狼人。</p>
+            </div>
+            <div class="tool-count-badge"><span>1</span><small>晚定勝負</small></div>
+          </div>
+
+          <!-- Setup -->
+          <div class="wolf-panel panel-surface" id="oneSetup">
+            <div class="sync-heading">
+              <div class="sync-icon wolf-sync-icon" aria-hidden="true">🌙</div>
+              <div class="sync-heading-copy">
+                <p class="tool-card-kicker">ROLE SWAP</p>
+                <h4>建立一夜狼人房間</h4>
+              </div>
+            </div>
+            <p class="sync-copy">選好<strong>版本</strong>、再微調<strong>各角色人數</strong>後建立房間,<strong>每人掃自己的 QR</strong> 收到秘密身份;這部裝置是主持人。</p>
+            <div class="wolf-step"><span class="wolf-step-no">STEP 1</span><strong>選擇版本</strong><small>四種版本 · 適配不同人數</small></div>
+            <div class="wolf-preset-list" id="onePresetList" role="group" aria-label="版本選擇"></div>
+            <div class="wolf-custom" id="oneCustom" hidden></div>
+            <div class="wolf-voice-row">
+              <label><input type="checkbox" id="oneVoiceToggle" checked /> 語音導播(用語音唸出每一步流程)</label>
+            </div>
+            <details class="game-rules">
+              <summary>📖 一夜狼人怎麼玩?</summary>
+              <p>一晚定勝負:沒有第二晚、不會逐人出局,天亮投票一次就結束,一局約 10 分鐘。</p>
+              <p>夜晚:狼人相認、🔮 預言家查驗、🦹 強盜與人換牌、🌀 搗蛋鬼交換另外兩人、😴 失眠者確認自己的牌。</p>
+              <p>天亮後:看手機上的「最終身份」——你的角色可能已經在夜裡被換走了!</p>
+              <p>討論 → 投票:被投出的人現在是狼人 → 好人贏;投錯、平票或無人被投出 → 狼人贏。</p>
+            </details>
+            <button class="button button-dark sync-create-button" id="createOneRoomButton" type="button">建立一夜狼人房間 <span>↗</span></button>
+          </div>
+
+          <!-- Host / moderator -->
+          <div class="wolf-panel panel-surface" id="oneHost" hidden>
+            <div class="sync-heading">
+              <div class="sync-icon wolf-sync-icon" aria-hidden="true">🌙</div>
+              <div class="sync-heading-copy">
+                <p class="tool-card-kicker">MODERATOR · 貓紙模式</p>
+                <h4>主持人面板</h4>
+              </div>
+              <span class="sync-badge wolf-sync-badge" id="oneBadge">房主</span>
+            </div>
+            <div class="sync-status wolf-status" id="oneStatus" aria-live="polite"></div>
+            <div class="qr-grid" id="oneQrGrid" hidden></div>
+            <div class="wolf-roster" id="oneRoster" aria-label="玩家與身份"></div>
+            <div class="wolf-control" id="oneControl" hidden>
+              <div class="wolf-phase" id="onePhaseCard">
+                <span class="wolf-phase-label" id="onePhaseLabel">準備中</span>
+                <strong id="onePhaseTitle">等大家加入</strong>
+                <p id="onePhaseHint"></p>
+              </div>
+              <div class="wolf-phase-actions" id="onePhaseActions"></div>
+              <button class="button button-primary button-large" id="oneNextButton" type="button" hidden>下一步 <span>↗</span></button>
+            </div>
+            <button class="text-button" id="endOneRoomButton" type="button" hidden>結束遊戲 <span>↺</span></button>
+          </div>
+
+          <!-- Client -->
+          <div class="wolf-panel panel-surface" id="oneClient" hidden>
+            <div class="sync-heading">
+              <div class="sync-icon wolf-sync-icon" aria-hidden="true">🌙</div>
+              <div class="sync-heading-copy">
+                <p class="tool-card-kicker">YOUR ROLE</p>
+                <h4>你的身份</h4>
+              </div>
+              <span class="sync-badge wolf-sync-badge" id="oneClientBadge">已連線</span>
+            </div>
+            <div class="sync-status wolf-status" id="oneClientStatus" aria-live="polite">正在連線…</div>
+            <div id="oneClientBody"></div>
+          </div>
+        </section>
+
+        <section class="app-view" id="view-agent" role="tabpanel" aria-labelledby="tab-agent" hidden>
+          <div class="section-heading">
+            <div>
+              <p class="section-kicker">CODENAMES</p>
+              <h2>機密特務</h2>
+              <p>25 個詞、紅藍兩隊。只有隊長看得到答案卡,隊員靠提示猜詞;猜中炸彈直接輸。</p>
+            </div>
+            <div class="tool-count-badge"><span>2</span><small>位隊長</small></div>
+          </div>
+
+          <!-- Setup -->
+          <div class="wolf-panel panel-surface" id="agentSetup">
+            <div class="sync-heading">
+              <div class="sync-icon wolf-sync-icon" aria-hidden="true">🕴️</div>
+              <div class="sync-heading-copy">
+                <p class="tool-card-kicker">SECRET KEY</p>
+                <h4>建立機密特務房間</h4>
+              </div>
+            </div>
+            <p class="sync-copy">選好<strong>詞庫</strong>與<strong>人數</strong>後建立房間,<strong>每人掃自己的 QR</strong> 就知道自己的隊伍與身份;只有隊長的手機看得到答案卡,這部裝置是主持人。</p>
+            <div class="spy-settings">
+              <label class="spy-field">詞庫
+                <select id="agentTheme">
+                  <option value="mixed">通用混合</option>
+                  <option value="animal">動物</option>
+                  <option value="food">食物</option>
+                  <option value="city">城市</option>
+                  <option value="tech">科技</option>
+                  <option value="entertain">電影娛樂</option>
+                  <option value="nature">大自然</option>
+                  <option value="body">身體</option>
+                  <option value="sport">運動</option>
+                  <option value="music">音樂</option>
+                  <option value="job">職業</option>
+                  <option value="place">場所</option>
+                  <option value="vehicle">交通工具</option>
+                  <option value="country">國家</option>
+                  <option value="custom">自訂(輸入 25 詞)</option>
+                </select>
+              </label>
+              <label class="spy-field">每隊人數(含隊長)
+                <select id="agentTeamSize">
+                  <option>2</option><option selected>3</option><option>4</option><option>5</option>
+                </select>
+              </label>
+              <label class="spy-field">先手
+                <select id="agentFirst">
+                  <option value="red">🔴 紅隊</option>
+                  <option value="blue">🔵 藍隊</option>
+                  <option value="random" selected>隨機</option>
+                </select>
+              </label>
+              <label class="spy-field">語音導播
+                <select id="agentVoiceSelect">
+                  <option value="1" selected>開</option>
+                  <option value="0">關</option>
+                </select>
+              </label>
+            </div>
+            <div class="spy-custom" id="agentCustom" hidden>
+              <textarea id="agentCustomWords" rows="4" maxlength="300" placeholder="輸入至少 25 個詞,用空白、逗號或換行分隔,例：蘋果 香蕉 貓 狗 …"></textarea>
+            </div>
+            <details class="game-rules">
+              <summary>📖 機密特務怎麼玩?</summary>
+              <p>25 個詞排成 5×5,紅藍兩隊各有一位隊長;只有隊長的手機看得到答案卡(紅 9 / 藍 8 / 中立 7 / 炸彈 1)。</p>
+              <p>輪到某隊時,隊長看答案卡想一個提示(詞 + 數字 N),直接開口說出來,主持人幫他輸入。</p>
+              <p>隊員最多猜 N+1 個詞:猜中自己隊的詞 → 繼續;猜中中立或對方詞 → 回合結束換隊;猜中💣炸彈 → 直接輸。</p>
+              <p>勝利:先翻完自己全部 9 個詞的隊伍獲勝;也可以約定玩到有人按「結束回合」比剩餘詞數。</p>
+            </details>
+            <button class="button button-dark sync-create-button" id="createAgentRoomButton" type="button">建立機密特務房間 <span>↗</span></button>
+          </div>
+
+          <!-- Host / moderator -->
+          <div class="wolf-panel panel-surface" id="agentHost" hidden>
+            <div class="sync-heading">
+              <div class="sync-icon wolf-sync-icon" aria-hidden="true">🕴️</div>
+              <div class="sync-heading-copy">
+                <p class="tool-card-kicker">MODERATOR · 答案卡全見</p>
+                <h4>主持人面板</h4>
+              </div>
+              <span class="sync-badge wolf-sync-badge" id="agentBadge">房主</span>
+            </div>
+            <div class="sync-status wolf-status" id="agentStatus" aria-live="polite"></div>
+            <div class="qr-grid" id="agentQrGrid" hidden></div>
+            <div class="wolf-roster" id="agentRoster" aria-label="玩家與身份"></div>
+            <div class="wolf-control" id="agentControl" hidden>
+              <div class="wolf-phase" id="agentPhaseCard">
+                <span class="wolf-phase-label" id="agentPhaseLabel">準備中</span>
+                <strong id="agentPhaseTitle">等大家加入</strong>
+                <p id="agentPhaseHint"></p>
+              </div>
+              <div class="agent-grid" id="agentHostGrid" hidden></div>
+              <div class="wolf-phase-actions" id="agentPhaseActions"></div>
+              <button class="button button-primary button-large" id="agentNextButton" type="button" hidden>下一步 <span>↗</span></button>
+            </div>
+            <button class="text-button" id="endAgentRoomButton" type="button" hidden>結束遊戲 <span>↺</span></button>
+          </div>
+
+          <!-- Client -->
+          <div class="wolf-panel panel-surface" id="agentClient" hidden>
+            <div class="sync-heading">
+              <div class="sync-icon wolf-sync-icon" aria-hidden="true">🕴️</div>
+              <div class="sync-heading-copy">
+                <p class="tool-card-kicker">YOUR MISSION</p>
+                <h4>你的任務</h4>
+              </div>
+              <span class="sync-badge wolf-sync-badge" id="agentClientBadge">已連線</span>
+            </div>
+            <div class="sync-status wolf-status" id="agentClientStatus" aria-live="polite">正在連線…</div>
+            <div id="agentClientBody"></div>
           </div>
         </section>
       </main>
