@@ -3256,6 +3256,163 @@ textarea:focus-visible,
   font-weight: 800;
 }
 
+/* ===== Offline solo (pass-the-phone) mode ===== */
+.solo-mode-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 12px 0 4px;
+}
+
+.solo-mode-option {
+  display: grid;
+  gap: 3px;
+  padding: 11px 12px;
+  text-align: left;
+  border: 1px solid var(--line-strong);
+  border-radius: 13px;
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.solo-mode-option strong {
+  color: var(--paper);
+  font-size: 13px;
+}
+
+.solo-mode-option small {
+  color: var(--paper-muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.solo-mode-option.is-selected {
+  border-color: var(--lime);
+  background: rgba(216, 255, 95, 0.08);
+}
+
+.solo-mode-option.is-selected strong {
+  color: var(--lime);
+}
+
+/* Black handoff card: whose turn is it to hold the phone? */
+.solo-deal-card {
+  display: grid;
+  gap: 9px;
+  justify-items: center;
+  align-content: center;
+  width: 100%;
+  min-height: 172px;
+  margin: 4px 0 10px;
+  padding: 24px 16px;
+  color: var(--paper);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 16px;
+  background: #05060a;
+}
+
+.solo-deal-card .solo-deal-label {
+  color: #6f727b;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+}
+
+.solo-deal-card strong {
+  font-size: 26px;
+  font-weight: 900;
+}
+
+.solo-deal-card small {
+  color: #8d9099;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.solo-deal-card:hover:not(:disabled) {
+  border-color: rgba(216, 255, 95, 0.4);
+}
+
+/* Black name cards: players point, the moderator taps. */
+.solo-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  margin: 8px 0 4px;
+}
+
+.solo-card {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 6px 10px;
+  text-align: left;
+  color: var(--paper);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  background: #05060a;
+}
+
+.solo-card-rank {
+  color: #6f727b;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.solo-card-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.solo-card:hover:not(:disabled) {
+  border-color: var(--lime);
+  background: rgba(216, 255, 95, 0.06);
+}
+
+.solo-card.is-selected {
+  border-color: var(--lime);
+  background: rgba(216, 255, 95, 0.14);
+}
+
+.solo-card.is-selected .solo-card-rank {
+  color: var(--lime-dark);
+}
+
+.solo-vote-who {
+  margin: 10px 0 2px;
+  color: var(--lime);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.solo-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 8px;
+}
+
+.solo-progress {
+  margin: 0 0 6px;
+}
+
+/* Tap-to-reveal secret card (night results shown to one player only). */
+button.solo-peek-card {
+  width: 100%;
+  margin-top: 4px;
+  border-style: dashed;
+  background: rgba(0, 0, 0, 0.42);
+}
+
+.solo-peek-card strong {
+  font-size: 21px;
+}
+
 /* Codenames word grid. */
 .agent-grid {
   display: grid;
