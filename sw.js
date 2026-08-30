@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pocket-play-v15';
+const CACHE_NAME = 'pocket-play-v16';
 const APP_SHELL = [
   './',
   './index.html',

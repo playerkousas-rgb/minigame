@@ -70,6 +70,11 @@
       preset: 60,
       remaining: 60,
     },
+    cards: {
+      texas: { bankroll: 1000, dealerBankroll: 1000, rounds: 0, wins: 0 },
+      bj: { bankroll: 1000, rounds: 0, wins: 0 },
+      bac: { bankroll: 1000, rounds: 0, wins: 0 },
+    },
   });
 
   const validString = (value, fallback) => (typeof value === 'string' ? value : fallback);
@@ -139,6 +144,24 @@
           preset: [30, 60, 180].includes(Number(saved.timer?.preset)) ? Number(saved.timer.preset) : initial.timer.preset,
           remaining: clamp(Number.isFinite(Number(saved.timer?.remaining)) ? Math.floor(Number(saved.timer.remaining)) : (Number(saved.timer?.preset) || initial.timer.remaining), 0, 3600),
         },
+        cards: {
+          texas: {
+            bankroll: clamp(Math.floor(Number(saved.cards?.texas?.bankroll) || initial.cards.texas.bankroll), 0, 999999),
+            dealerBankroll: clamp(Math.floor(Number(saved.cards?.texas?.dealerBankroll) || initial.cards.texas.dealerBankroll), 0, 999999),
+            rounds: Math.max(0, Math.floor(Number(saved.cards?.texas?.rounds) || 0)),
+            wins: Math.max(0, Math.floor(Number(saved.cards?.texas?.wins) || 0)),
+          },
+          bj: {
+            bankroll: clamp(Math.floor(Number(saved.cards?.bj?.bankroll) || initial.cards.bj.bankroll), 0, 999999),
+            rounds: Math.max(0, Math.floor(Number(saved.cards?.bj?.rounds) || 0)),
+            wins: Math.max(0, Math.floor(Number(saved.cards?.bj?.wins) || 0)),
+          },
+          bac: {
+            bankroll: clamp(Math.floor(Number(saved.cards?.bac?.bankroll) || initial.cards.bac.bankroll), 0, 999999),
+            rounds: Math.max(0, Math.floor(Number(saved.cards?.bac?.rounds) || 0)),
+            wins: Math.max(0, Math.floor(Number(saved.cards?.bac?.wins) || 0)),
+          },
+        },
       };
     } catch (error) {
       return initial;
@@ -177,23 +200,56 @@
     if (typeof navigator.vibrate === 'function') navigator.vibrate(pattern);
   }
 
-  // Navigation
+  // Navigation: 首頁 → 四大分類 → 單一遊戲／工具
   function switchView(viewName) {
-    $$('.mode-tab').forEach((tab) => {
-      const active = tab.dataset.view === viewName;
-      tab.classList.toggle('is-active', active);
-      tab.setAttribute('aria-selected', String(active));
-    });
+    const target = document.getElementById(`view-${viewName}`);
+    if (!target) return;
     $$('.app-view').forEach((view) => {
-      const active = view.id === `view-${viewName}`;
+      const active = view === target;
       view.classList.toggle('is-active', active);
       view.hidden = !active;
     });
     if (viewName === 'wheel') window.setTimeout(drawWheel, 30);
+    if (viewName === 'texas') window.setTimeout(renderTexas, 30);
+    if (viewName === 'bj') window.setTimeout(renderBlackjack, 30);
+    if (viewName === 'bac') window.setTimeout(renderBaccarat, 30);
+    window.scrollTo(0, 0);
   }
 
-  $$('.mode-tab').forEach((tab) => {
-    tab.addEventListener('click', () => switchView(tab.dataset.view));
+  function scrollToAnchor(anchorId) {
+    const anchor = document.getElementById(anchorId);
+    if (!anchor) return;
+    window.setTimeout(() => {
+      anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 60);
+  }
+
+  document.addEventListener('click', (event) => {
+    const goHome = event.target.closest('[data-go-home]');
+    const back = event.target.closest('[data-back]');
+    const category = event.target.closest('[data-category]');
+    const game = event.target.closest('[data-game]');
+
+    if (goHome) {
+      switchView('home');
+      return;
+    }
+    if (back) {
+      switchView(back.dataset.back || 'home');
+      return;
+    }
+    if (category) {
+      switchView(`cat-${category.dataset.category}`);
+      return;
+    }
+    if (game) {
+      switchView(game.dataset.game);
+      if (game.dataset.anchor) scrollToAnchor(game.dataset.anchor);
+      if (game.dataset.game === 'dice' && game.dataset.anchor === 'diceSync') {
+        showToast('在多人骰子房切到「隱藏」就是大話骰');
+      }
+      return;
+    }
   });
 
   // Connection indicator: the app is designed to work regardless of this value.
@@ -7303,6 +7359,1103 @@
   });
   updateTimerDisplay();
 
+  // ===== 卡牌遊戲公用：牌、洗牌、加密隨機 =====
+  const CARD_SUITS = ['♠', '♥', '♦', '♣'];
+  const CARD_RANK_LABELS = { 1: 'A', 11: 'J', 12: 'Q', 13: 'K' };
+
+  const cardRankLabel = (rank) => CARD_RANK_LABELS[rank] || String(rank);
+  const cardIsRed = (card) => card.suit === '♥' || card.suit === '♦';
+  const cardName = (card) => `${cardRankLabel(card.rank)}${card.suit}`;
+
+  // 加密級隨機：用 Web Crypto 的 getRandomValues，無法被預測或控制。
+  function cryptoRandomInt(maxExclusive) {
+    if (maxExclusive <= 1) return 0;
+    const limit = Math.floor(0x100000000 / maxExclusive) * maxExclusive;
+    const buffer = new Uint32Array(1);
+    let value = 0;
+    do {
+      crypto.getRandomValues(buffer);
+      value = buffer[0];
+    } while (value >= limit);
+    return value % maxExclusive;
+  }
+
+  function shuffleCards(deck) {
+    for (let index = deck.length - 1; index > 0; index -= 1) {
+      const swap = cryptoRandomInt(index + 1);
+      [deck[index], deck[swap]] = [deck[swap], deck[index]];
+    }
+    return deck;
+  }
+
+  let shuffleCounter = 0;
+
+  function shuffleSeed(deck) {
+    shuffleCounter = (shuffleCounter + 1) % 0xffff;
+    let hash = 0;
+    deck.slice(0, 40).forEach((card) => {
+      hash = ((hash * 31) + card.rank * 4 + CARD_SUITS.indexOf(card.suit) + 1) >>> 0;
+    });
+    return (hash ^ shuffleCounter).toString(16).toUpperCase().padStart(4, '0').slice(-4);
+  }
+
+  function buildShoe(decks = 1) {
+    const deck = [];
+    for (let d = 0; d < decks; d += 1) {
+      CARD_SUITS.forEach((suit) => {
+        for (let rank = 1; rank <= 13; rank += 1) deck.push({ suit, rank });
+      });
+    }
+    const shuffled = shuffleCards(deck);
+    return { deck: shuffled, seed: shuffleSeed(shuffled), decks };
+  }
+
+  function createCardEl(card, options = {}) {
+    const el = document.createElement('div');
+    if (options.down) {
+      el.className = 'playing-card is-down';
+      return el;
+    }
+    el.className = 'playing-card';
+    const cornerTop = document.createElement('span');
+    cornerTop.className = 'card-corner';
+    cornerTop.innerHTML = `${cardRankLabel(card.rank)}<br>${card.suit}`;
+    const face = document.createElement('span');
+    face.className = 'card-face';
+    face.textContent = card.suit;
+    const cornerBottom = document.createElement('span');
+    cornerBottom.className = 'card-corner corner-btm';
+    cornerBottom.innerHTML = `${cardRankLabel(card.rank)}<br>${card.suit}`;
+    if (cardIsRed(card)) el.classList.add('is-red');
+    el.append(cornerTop, face, cornerBottom);
+    return el;
+  }
+
+  function renderHand(container, cards, options = {}) {
+    container.textContent = '';
+    const slots = Math.max(options.slots || cards.length, options.slots || 0);
+    for (let index = 0; index < slots; index += 1) {
+      const card = cards[index];
+      if (card) container.appendChild(createCardEl(card, options));
+      else container.appendChild(document.createElement('span')).className = 'waiting-slot';
+    }
+  }
+
+  function renderPlaceholders(container, slots) {
+    container.textContent = '';
+    for (let index = 0; index < slots; index += 1) {
+      container.appendChild(document.createElement('span')).className = 'waiting-slot';
+    }
+  }
+
+  function addActionButton(container, label, handler, className = '') {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `action-btn ${className}`.trim();
+    button.textContent = label;
+    button.addEventListener('click', handler);
+    container.appendChild(button);
+    return button;
+  }
+
+  const formatBankroll = (value) => Number(value).toLocaleString('en-US');
+
+  // ===== 德州撲克（人機單挑） =====
+  const TEXAS_SB = 5;
+  const TEXAS_BB = 10;
+  const TEXAS_STREET_LABELS = { idle: '準備發牌', preflop: '翻牌前', flop: '翻牌', turn: '轉牌', river: '河牌', showdown: '攤牌' };
+  const HAND_NAMES = ['高牌', '一對', '兩對', '三條', '順子', '同花', '葫蘆', '四條', '同花順'];
+
+  let texas = {
+    shoe: buildShoe(1),
+    street: 'idle',
+    phase: 'waiting',
+    community: [],
+    playerCards: [],
+    dealerCards: [],
+    pot: 0,
+    buttonOnPlayer: true,
+    actor: null,
+    needPlayer: false,
+    needDealer: false,
+    playerBet: 0,
+    dealerBet: 0,
+    lastBet: 0,
+    playerAllIn: false,
+    dealerAllIn: false,
+    playerFolded: false,
+    dealerFolded: false,
+    handOver: true,
+    reveal: false,
+    showBetInput: false,
+    resultMessage: '按「發牌」開始新一局',
+    log: [],
+    seedNote: '',
+  };
+
+  function evalFive(hand) {
+    const ranks = hand.map((card) => card.rank).sort((a, b) => b - a);
+    const suits = hand.map((card) => card.suit);
+    const counts = {};
+    ranks.forEach((rank) => { counts[rank] = (counts[rank] || 0) + 1; });
+    const groups = Object.keys(counts).map((rank) => [Number(rank), counts[rank]])
+      .sort((a, b) => b[1] - a[1] || b[0] - a[0]);
+    const flush = suits.every((suit) => suit === suits[0]);
+    let straightHigh = null;
+    const unique = [...new Set(ranks)];
+    if (unique.length === 5) {
+      if (unique[0] - unique[4] === 4) straightHigh = unique[0];
+      if (unique[0] === 14 && unique[1] === 5 && unique[2] === 4 && unique[3] === 3 && unique[4] === 2) straightHigh = 5;
+    }
+    if (flush && straightHigh) return [8, straightHigh];
+    if (groups[0][1] === 4) return [7, groups[0][0], groups[1][0]];
+    if (groups[0][1] === 3 && groups[1][1] === 2) return [6, groups[0][0], groups[1][0]];
+    if (flush) return [5, ...ranks];
+    if (straightHigh) return [4, straightHigh];
+    if (groups[0][1] === 3) return [3, groups[0][0], ...groups.slice(1).map((group) => group[0])];
+    if (groups[0][1] === 2 && groups[1][1] === 2) return [2, groups[0][0], groups[1][0], groups[2][0]];
+    if (groups[0][1] === 2) return [1, groups[0][0], ...groups.slice(1).map((group) => group[0])];
+    return [0, ...ranks];
+  }
+
+  function compareHands(a, b) {
+    const length = Math.max(a.length, b.length);
+    for (let index = 0; index < length; index += 1) {
+      const av = a[index] || 0;
+      const bv = b[index] || 0;
+      if (av !== bv) return av - bv;
+    }
+    return 0;
+  }
+
+  function bestFive(cards) {
+    let best = null;
+    const total = cards.length;
+    const combo = [];
+    const visit = (start, left) => {
+      if (left === 0) {
+        const value = evalFive(combo);
+        if (!best || compareHands(value, best) > 0) best = value;
+        return;
+      }
+      for (let index = start; index <= total - left; index += 1) {
+        combo.push(cards[index]);
+        visit(index + 1, left - 1);
+        combo.pop();
+      }
+    };
+    visit(0, 5);
+    return best;
+  }
+
+  function describeHand(score) {
+    if (!score) return '—';
+    if (score[0] === 8 && score[1] === 5) return '同花順（A2345）';
+    return HAND_NAMES[score[0]];
+  }
+
+  function texasDraw() {
+    if (texas.shoe.deck.length === 0) {
+      texas.shoe = buildShoe(1);
+      texas.seedNote = '牌堆耗盡，已重新洗牌';
+    }
+    return texas.shoe.deck.pop();
+  }
+
+  function texasLogLine(text, kind = '') {
+    texas.log.push({ text, kind });
+    if (texas.log.length > 28) texas.log.shift();
+  }
+
+  const texasFacingCall = () => Math.max(0, texas.lastBet - texas.playerBet);
+  const texasMinRaise = () => (texas.lastBet === 0 ? TEXAS_BB : texas.lastBet + TEXAS_BB);
+
+  function texasStartHand() {
+    const chips = state.cards.texas.bankroll;
+    const dealerChips = state.cards.texas.dealerBankroll;
+    if (chips < TEXAS_BB || dealerChips < TEXAS_BB) {
+      showToast('籌碼不足 10 枚，請先「重置籌碼」');
+      return;
+    }
+    texas.handOver = false;
+    texas.reveal = false;
+    texas.showBetInput = false;
+    texas.seedNote = '';
+    texas.community = [];
+    texas.phase = 'betting';
+    texas.street = 'preflop';
+    texas.playerFolded = false;
+    texas.dealerFolded = false;
+    texas.playerAllIn = false;
+    texas.dealerAllIn = false;
+    texas.playerBet = 0;
+    texas.dealerBet = 0;
+    texas.lastBet = TEXAS_BB;
+    texas.buttonOnPlayer = !texas.buttonOnPlayer;
+    texas.playerCards = [texasDraw(), texasDraw()];
+    texas.dealerCards = [texasDraw(), texasDraw()];
+    const buttonIsPlayer = texas.buttonOnPlayer;
+    const playerBlind = buttonIsPlayer ? TEXAS_SB : TEXAS_BB;
+    const dealerBlind = buttonIsPlayer ? TEXAS_BB : TEXAS_SB;
+    state.cards.texas.bankroll -= playerBlind;
+    state.cards.texas.dealerBankroll -= dealerBlind;
+    texas.pot = playerBlind + dealerBlind;
+    texas.playerBet = playerBlind;
+    texas.dealerBet = dealerBlind;
+    texas.needPlayer = true;
+    texas.needDealer = true;
+    texas.actor = buttonIsPlayer ? 'player' : 'dealer';
+    texas.log = [];
+    texasLogLine(`新一局：${buttonIsPlayer ? '你是莊家（小盲 5）' : '你是大盲 10'}，底池 15`, '');
+    saveState();
+    renderTexas();
+    if (texas.actor === 'dealer') window.setTimeout(texasDealerAct, 650);
+  }
+
+  function texasRefundUncalled() {
+    if (texas.playerAllIn && texas.playerBet < texas.dealerBet) {
+      const excess = texas.dealerBet - texas.playerBet;
+      state.cards.texas.dealerBankroll += excess;
+      texas.pot -= excess;
+      texas.dealerBet = texas.playerBet;
+    } else if (texas.dealerAllIn && texas.dealerBet < texas.playerBet) {
+      const excess = texas.playerBet - texas.dealerBet;
+      state.cards.texas.bankroll += excess;
+      texas.pot -= excess;
+      texas.playerBet = texas.dealerBet;
+    }
+  }
+
+  function texasAfterAction() {
+    texasRefundUncalled();
+    if (texas.needPlayer && !texas.needDealer) texas.actor = 'player';
+    else if (texas.needDealer) texas.actor = 'dealer';
+    else texas.actor = null;
+    const complete = !texas.needPlayer && !texas.needDealer && texas.playerBet === texas.dealerBet;
+    if (complete || (!texas.actor && (texas.playerAllIn || texas.dealerAllIn))) {
+      if (texas.playerAllIn || texas.dealerAllIn) texasRunout();
+      else texasNextStreet();
+      return;
+    }
+    renderTexas();
+    if (texas.actor === 'dealer') window.setTimeout(texasDealerAct, 650);
+  }
+
+  function texasNextStreet() {
+    if (texas.handOver) return;
+    if (texas.playerAllIn || texas.dealerAllIn) {
+      texasRunout();
+      return;
+    }
+    if (texas.street === 'preflop') {
+      texas.street = 'flop';
+      texas.community.push(texasDraw(), texasDraw(), texasDraw());
+      texasLogLine(`翻牌：${texas.community.map(cardName).join(' ')}`);
+    } else if (texas.street === 'flop') {
+      texas.street = 'turn';
+      texas.community.push(texasDraw());
+      texasLogLine(`轉牌：${cardName(texas.community[3])}`);
+    } else if (texas.street === 'turn') {
+      texas.street = 'river';
+      texas.community.push(texasDraw());
+      texasLogLine(`河牌：${cardName(texas.community[4])}`);
+    } else {
+      texasShowdown();
+      return;
+    }
+    texas.playerBet = 0;
+    texas.dealerBet = 0;
+    texas.lastBet = 0;
+    texas.needPlayer = !texas.playerAllIn && !texas.playerFolded;
+    texas.needDealer = !texas.dealerAllIn && !texas.dealerFolded;
+    texas.actor = texas.buttonOnPlayer ? 'dealer' : 'player';
+    renderTexas();
+    if (texas.actor === 'dealer') window.setTimeout(texasDealerAct, 650);
+  }
+
+  function texasRunout() {
+    while (texas.community.length < 5) texas.community.push(texasDraw());
+    texasShowdown();
+  }
+
+  function texasShowdown() {
+    if (texas.handOver) return;
+    texas.handOver = true;
+    texas.reveal = true;
+    texas.street = 'showdown';
+    const playerScore = bestFive([...texas.playerCards, ...texas.community]);
+    const dealerScore = bestFive([...texas.dealerCards, ...texas.community]);
+    const cmp = compareHands(playerScore, dealerScore);
+    let winner = 'push';
+    let message = `平手：都是 ${describeHand(playerScore)}`;
+    if (cmp > 0) {
+      winner = 'player';
+      message = `攤牌：你的 ${describeHand(playerScore)} 勝 ${describeHand(dealerScore)}`;
+    } else if (cmp < 0) {
+      winner = 'dealer';
+      message = `攤牌：電腦的 ${describeHand(dealerScore)} 勝 ${describeHand(playerScore)}`;
+    }
+    texasFinishHand(winner, message, `你：「${texas.playerCards.map(cardName).join(' ')}」 電腦：「${texas.dealerCards.map(cardName).join(' ')}」`);
+  }
+
+  function texasFinishHand(winner, message, detail = '') {
+    texas.handOver = true;
+    texas.street = 'showdown';
+    if (winner === 'player') {
+      state.cards.texas.bankroll += texas.pot;
+      state.cards.texas.wins += 1;
+    } else if (winner === 'dealer') {
+      state.cards.texas.dealerBankroll += texas.pot;
+    }
+    state.cards.texas.rounds += 1;
+    texas.resultMessage = message;
+    texasLogLine(message, winner === 'player' ? 'win' : winner === 'dealer' ? 'loss' : 'push');
+    if (detail) texasLogLine(detail, '');
+    saveState();
+    renderTexas();
+  }
+
+  function texasPlayerFold() {
+    if (texas.handOver || texas.actor !== 'player') return;
+    texas.playerFolded = true;
+    texas.needPlayer = false;
+    texasFinishHand('dealer', '你棄牌，電腦拿下彩池');
+  }
+
+  function texasPlayerCheck() {
+    if (texas.handOver || texas.actor !== 'player') return;
+    texas.needPlayer = false;
+    texasLogLine('你過牌');
+    texasAfterAction();
+  }
+
+  function texasPlayerCall() {
+    if (texas.handOver || texas.actor !== 'player') return;
+    const toCall = texasFacingCall();
+    if (toCall <= 0) {
+      texasPlayerCheck();
+      return;
+    }
+    const chips = state.cards.texas.bankroll;
+    const amount = Math.min(toCall, chips);
+    state.cards.texas.bankroll -= amount;
+    texas.pot += amount;
+    texas.playerBet += amount;
+    texas.needPlayer = false;
+    if (chips <= toCall) texas.playerAllIn = true;
+    texasLogLine(`你跟注 ${amount}`);
+    texasAfterAction();
+  }
+
+  function texasPlayerRaise(amount) {
+    if (texas.handOver || texas.actor !== 'player' || texas.playerAllIn) return;
+    const chips = state.cards.texas.bankroll;
+    const isBet = texas.lastBet === 0;
+    const total = clamp(Math.floor(Number(amount) || 0), texasMinRaise(), chips);
+    const paid = Math.max(0, total - texas.playerBet);
+    state.cards.texas.bankroll -= paid;
+    texas.pot += paid;
+    texas.playerBet = total;
+    texas.needPlayer = false;
+    texas.lastBet = total;
+    if (state.cards.texas.bankroll === 0) texas.playerAllIn = true;
+    texas.needDealer = !texas.dealerAllIn && !texas.dealerFolded;
+    texasLogLine(`你${isBet ? '下注' : '加注到'} ${total} 枚`);
+    texasAfterAction();
+  }
+
+  function texasDealerFold() {
+    if (texas.handOver || texas.actor !== 'dealer') return;
+    texas.dealerFolded = true;
+    texas.needDealer = false;
+    texasFinishHand('player', '電腦棄牌，你拿下彩池');
+  }
+
+  function texasDealerCheck() {
+    if (texas.handOver || texas.actor !== 'dealer') return;
+    texas.needDealer = false;
+    texasLogLine('電腦過牌');
+    texasAfterAction();
+  }
+
+  function texasDealerCall() {
+    if (texas.handOver || texas.actor !== 'dealer') return;
+    const toCall = Math.max(0, texas.lastBet - texas.dealerBet);
+    const chips = state.cards.texas.dealerBankroll;
+    const amount = Math.min(toCall, chips);
+    state.cards.texas.dealerBankroll -= amount;
+    texas.pot += amount;
+    texas.dealerBet += amount;
+    texas.needDealer = false;
+    if (chips <= toCall) texas.dealerAllIn = true;
+    texasLogLine(`電腦跟注 ${amount}`);
+    texasAfterAction();
+  }
+
+  function texasDealerRaise(total) {
+    if (texas.handOver || texas.actor !== 'dealer' || texas.dealerAllIn) return;
+    const chips = state.cards.texas.dealerBankroll;
+    const isBet = texas.lastBet === 0;
+    const safeTotal = clamp(Math.floor(Number(total) || 0), texasMinRaise(), chips);
+    const paid = Math.max(0, safeTotal - texas.dealerBet);
+    state.cards.texas.dealerBankroll -= paid;
+    texas.pot += paid;
+    texas.dealerBet = safeTotal;
+    texas.lastBet = safeTotal;
+    texas.needDealer = false;
+    if (state.cards.texas.dealerBankroll === 0) texas.dealerAllIn = true;
+    texas.needPlayer = !texas.playerAllIn && !texas.playerFolded;
+    texasLogLine(`電腦${isBet ? '下注' : '加注到'} ${safeTotal}`);
+    texasAfterAction();
+  }
+
+  function texasDealerStrength() {
+    const cards = texas.dealerCards;
+    if (texas.street === 'preflop') {
+      const sorted = [...cards].sort((a, b) => b.rank - a.rank);
+      const [a, b] = sorted;
+      if (a.rank === b.rank) return 0.82 + (a.rank / 13) * 0.1;
+      if (a.rank === 14 && b.rank >= 10) return 0.72;
+      if (a.rank >= 10 && b.rank >= 10) return 0.62;
+      if (a.rank === 14) return 0.55;
+      if (a.rank >= 10 || b.rank >= 10) return 0.46;
+      if (a.suit === b.suit && Math.abs(a.rank - b.rank) <= 2) return 0.44;
+      return 0.3;
+    }
+    const score = bestFive([...texas.dealerCards, ...texas.community]);
+    const base = [0.18, 0.42, 0.6, 0.7, 0.78, 0.84, 0.92, 0.96, 0.99][score[0]];
+    return base + cryptoRandomInt(100) / 1000 - 0.05;
+  }
+
+  function texasDealerAct() {
+    if (texas.handOver || texas.actor !== 'dealer') return;
+    const strength = texasDealerStrength();
+    const toCall = Math.max(0, texas.lastBet - texas.dealerBet);
+    const dealerChips = state.cards.texas.dealerBankroll;
+    const minRaise = texasMinRaise();
+    const canRaise = dealerChips > toCall && (toCall > 0 || dealerChips >= minRaise);
+
+    if (toCall === 0) {
+      if (strength > 0.62 && canRaise) {
+        const target = Math.max(minRaise, Math.min(Math.floor(texas.pot * 0.6), dealerChips));
+        texasDealerRaise(target);
+      } else {
+        texasDealerCheck();
+      }
+      return;
+    }
+    if (strength > 0.78 && canRaise) {
+      texasDealerRaise(Math.min(dealerChips, Math.floor(texas.lastBet * 2.5)));
+    } else if (strength > 0.42 || cryptoRandomInt(100) < 14) {
+      texasDealerCall();
+    } else {
+      texasDealerFold();
+    }
+  }
+
+  function renderTexas() {
+    const chips = state.cards.texas.bankroll;
+    const dealerChips = state.cards.texas.dealerBankroll;
+    $('#texasBankroll').textContent = formatBankroll(chips);
+    $('#texasPlayerChips').textContent = `${formatBankroll(chips)} 枚`;
+    $('#texasDealerChips').textContent = `${formatBankroll(dealerChips)} 枚`;
+    $('#texasPot').textContent = formatBankroll(texas.pot);
+    $('#texasStreet').textContent = TEXAS_STREET_LABELS[texas.street] || '準備發牌';
+    $('#texasDeckInfo').textContent = `🂠 ${texas.shoe.deck.length} 張 · 洗牌 #${texas.shoe.seed}`;
+    $('#texasDealerLabel').textContent = `🤖 電腦莊家${texas.buttonOnPlayer ? '' : ' · 莊家'}`;
+    $('#texasPlayerLabel').textContent = `🧑 你${texas.buttonOnPlayer ? ' · 莊家' : ''}`;
+    $('#texasPlayerHint').textContent = texas.handOver ? '這局結束，按「發牌」開下一局' : texas.playerAllIn ? '你已全下' : '';
+    $('#texasDealerHint').textContent = texas.reveal ? `攤牌：${texas.dealerCards.map(cardName).join(' ')}` : texas.seedNote || '暗牌 · 攤牌時公開';
+    renderHand($('#texasDealerCards'), texas.dealerCards, { slots: 2, down: !texas.reveal });
+    renderHand($('#texasPlayerCards'), texas.playerCards, { slots: 2 });
+    renderHand($('#texasCommunity'), [...texas.community, null, null, null, null, null].slice(0, 5), {});
+
+    let message = texas.resultMessage || '按「發牌」開始新一局';
+    if (!texas.handOver) {
+      const toCall = texasFacingCall();
+      if (texas.actor === 'player') message = toCall > 0 ? `輪到你：跟注 ${toCall}、加注或棄牌` : '輪到你：過牌或下注';
+      else if (texas.actor === 'dealer') message = '電腦思考中…';
+      else message = '等下一條街…';
+    } else if (chips < TEXAS_BB || dealerChips < TEXAS_BB) {
+      message = '一方籌碼不足兩倍大盲，請按「重置籌碼」再開局';
+    }
+    $('#texasMessage').textContent = message;
+
+    const actions = $('#texasActions');
+    actions.textContent = '';
+    if (!texas.handOver && texas.actor === 'player') {
+      const toCall = texasFacingCall();
+      addActionButton(actions, '棄牌', texasPlayerFold, 'is-danger');
+      addActionButton(actions, toCall > 0 ? `跟注 ${toCall}` : '過牌', toCall > 0 ? texasPlayerCall : texasPlayerCheck, 'is-primary');
+      if (!texas.playerAllIn) {
+        addActionButton(actions, texas.lastBet === 0 ? '下注' : '加注', () => {
+          texas.showBetInput = !texas.showBetInput;
+          renderTexas();
+        });
+        addActionButton(actions, '全下', () => {
+          texas.showBetInput = false;
+          texasPlayerRaise(chips);
+        });
+      }
+    }
+    if (texas.showBetInput && !texas.handOver && texas.actor === 'player' && !texas.playerAllIn) {
+      const row = document.createElement('div');
+      row.className = 'bet-input-row';
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.min = texasMinRaise();
+      input.max = chips;
+      input.value = Math.min(texasMinRaise() * 2, chips);
+      input.setAttribute('aria-label', '加注金額');
+      const apply = (amount) => {
+        texas.showBetInput = false;
+        texasPlayerRaise(amount);
+      };
+      const quick = (label, amount) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'bet-quick';
+        button.textContent = label;
+        button.addEventListener('click', () => apply(amount));
+        row.appendChild(button);
+      };
+      quick(`最小 ${texasMinRaise()}`, texasMinRaise());
+      quick('半池', Math.max(texasMinRaise(), Math.floor(texas.pot * 0.5) + (texas.lastBet || 0)));
+      quick('全下', chips);
+      const confirm = document.createElement('button');
+      confirm.type = 'button';
+      confirm.className = 'action-btn is-primary';
+      confirm.textContent = '確認';
+      confirm.addEventListener('click', () => apply(Number(input.value) || texasMinRaise()));
+      row.append(input, confirm);
+      actions.appendChild(row);
+    }
+
+    const dealButton = $('#texasDealButton');
+    dealButton.disabled = !texas.handOver || chips < TEXAS_BB || dealerChips < TEXAS_BB;
+    dealButton.innerHTML = texas.handOver ? '發牌 · 下一局 <span>↗</span>' : '發牌 <span>↗</span>';
+
+    const logEl = $('#texasLog');
+    logEl.textContent = '';
+    if (!texas.log.length) logEl.innerHTML = '<span class="log-empty">還沒有紀錄</span>';
+    texas.log.forEach((entry) => {
+      const line = document.createElement('div');
+      line.className = `log-line is-${entry.kind}`;
+      line.textContent = entry.text;
+      logEl.appendChild(line);
+    });
+
+    const rounds = state.cards.texas.rounds;
+    const wins = state.cards.texas.wins;
+    const rate = rounds > 0 ? Math.round((wins / rounds) * 100) : 0;
+    $('#texasStats').innerHTML = `
+      <div class="stat-row"><span>已玩局數</span><strong>${rounds}</strong></div>
+      <div class="stat-row"><span>你贏的局數</span><strong>${wins}</strong></div>
+      <div class="stat-row"><span>勝率</span><strong>${rate}%</strong></div>
+      <div class="stat-row"><span>盲注 / 起始</span><strong>5 / 10 · 1000</strong></div>
+    `;
+  }
+
+  function texasResetChips() {
+    state.cards.texas.bankroll = 1000;
+    state.cards.texas.dealerBankroll = 1000;
+    texas.handOver = true;
+    texas.street = 'idle';
+    texas.phase = 'waiting';
+    texas.reveal = false;
+    texas.showBetInput = false;
+    texas.pot = 0;
+    texas.log = [];
+    texas.resultMessage = '雙方籌碼已重置，按「發牌」開始';
+    saveState();
+    renderTexas();
+    showToast('雙方籌碼已重置');
+  }
+
+  $('#texasDealButton').addEventListener('click', () => {
+    if (!texas.handOver) return;
+    texasStartHand();
+  });
+  $('#texasResetButton').addEventListener('click', texasResetChips);
+
+  // ===== 21 點（人機） =====
+  let blackjack = {
+    shoe: buildShoe(6),
+    player: [],
+    dealer: [],
+    bet: 0,
+    stage: 'bet', // bet | playing | over
+    reveal: false,
+    doubled: false,
+    result: '',
+    kind: '',
+    history: [],
+  };
+
+  const bjDraw = () => {
+    if (blackjack.shoe.deck.length === 0) blackjack.shoe = buildShoe(6);
+    return blackjack.shoe.deck.pop();
+  };
+
+  function blackjackValue(hand) {
+    let total = 0;
+    let aces = 0;
+    hand.forEach((card) => {
+      total += card.rank === 1 ? 11 : Math.min(card.rank, 10);
+      if (card.rank === 1) aces += 1;
+    });
+    while (total > 21 && aces > 0) {
+      total -= 10;
+      aces -= 1;
+    }
+    return total;
+  }
+
+  function bjSetBet(amount) {
+    if (blackjack.stage === 'playing') {
+      showToast('這局進行中，先停牌再下注');
+      return;
+    }
+    if (blackjack.stage === 'over') {
+      blackjack.stage = 'bet';
+      blackjack.player = [];
+      blackjack.dealer = [];
+      blackjack.reveal = false;
+      blackjack.result = '';
+      blackjack.kind = '';
+      blackjack.doubled = false;
+    }
+    const chips = state.cards.bj.bankroll;
+    blackjack.bet = amount === 'all' ? chips : Math.min(Number(amount) || 0, chips);
+    renderBlackjack();
+  }
+
+  function bjDeal() {
+    if (blackjack.stage !== 'bet' || blackjack.bet <= 0) return;
+    const chips = state.cards.bj.bankroll;
+    if (chips < blackjack.bet) {
+      showToast('籌碼不足');
+      return;
+    }
+    if (blackjack.shoe.deck.length < 52) {
+      blackjack.shoe = buildShoe(6);
+      blackjack.history.unshift({ text: '牌不夠，已自動重洗 6 副牌', kind: '' });
+    }
+    state.cards.bj.bankroll -= blackjack.bet;
+    blackjack.player = [bjDraw(), bjDraw()];
+    blackjack.dealer = [bjDraw(), bjDraw()];
+    blackjack.stage = 'playing';
+    blackjack.reveal = false;
+    blackjack.doubled = false;
+    blackjack.result = '';
+    blackjack.kind = '';
+    saveState();
+    renderBlackjack();
+    if (blackjackValue(blackjack.player) === 21) window.setTimeout(bjStand, 500);
+  }
+
+  function bjHit() {
+    if (blackjack.stage !== 'playing') return;
+    blackjack.player.push(bjDraw());
+    if (blackjackValue(blackjack.player) > 21) bjResolve();
+    else renderBlackjack();
+  }
+
+  function bjDouble() {
+    if (blackjack.stage !== 'playing' || blackjack.player.length !== 2 || blackjack.doubled) return;
+    if (state.cards.bj.bankroll < blackjack.bet) {
+      showToast('籌碼不足，不能加倍');
+      return;
+    }
+    state.cards.bj.bankroll -= blackjack.bet;
+    blackjack.bet *= 2;
+    blackjack.doubled = true;
+    blackjack.player.push(bjDraw());
+    bjResolve();
+  }
+
+  function bjStand() {
+    if (blackjack.stage === 'over') return;
+    blackjack.reveal = true;
+    const playerBJ = blackjackValue(blackjack.player) === 21 && blackjack.player.length === 2;
+    if (!playerBJ) {
+      while (blackjackValue(blackjack.dealer) < 17) blackjack.dealer.push(bjDraw());
+    }
+    bjResolve();
+  }
+
+  function bjResolve() {
+    if (blackjack.stage === 'over') return;
+    blackjack.stage = 'over';
+    blackjack.reveal = true;
+    const player = blackjackValue(blackjack.player);
+    const dealer = blackjackValue(blackjack.dealer);
+    const playerBJ = player === 21 && blackjack.player.length === 2;
+    const dealerBJ = dealer === 21 && blackjack.dealer.length === 2;
+    let kind = 'push';
+    let text = `和局：${player} : ${dealer}，下注退回`;
+
+    if (player > 21) {
+      kind = 'loss';
+      text = `你爆牌（${player} 點），輸掉 ${formatBankroll(blackjack.bet)}`;
+    } else if (dealer > 21) {
+      state.cards.bj.bankroll += blackjack.bet * 2;
+      state.cards.bj.wins += 1;
+      kind = 'win';
+      text = `莊家爆牌（${dealer} 點），你贏 ${formatBankroll(blackjack.bet)}`;
+    } else if (playerBJ && !dealerBJ) {
+      const win = Math.floor(blackjack.bet * 2.5);
+      state.cards.bj.bankroll += win;
+      state.cards.bj.wins += 1;
+      kind = 'win';
+      text = `黑傑克！你贏 ${formatBankroll(win)}（3:2）`;
+    } else if (dealerBJ && !playerBJ) {
+      kind = 'loss';
+      text = `莊家黑傑克，你輸 ${formatBankroll(blackjack.bet)}`;
+    } else if (player > dealer) {
+      state.cards.bj.bankroll += blackjack.bet * 2;
+      state.cards.bj.wins += 1;
+      kind = 'win';
+      text = `你 ${player} : ${dealer} 勝，贏 ${formatBankroll(blackjack.bet)}`;
+    } else if (dealer > player) {
+      kind = 'loss';
+      text = `你 ${player} : ${dealer} 輸，輸掉 ${formatBankroll(blackjack.bet)}`;
+    }
+    state.cards.bj.rounds += 1;
+    blackjack.result = text;
+    blackjack.kind = kind;
+    blackjack.history.unshift({ text, kind });
+    if (blackjack.history.length > 24) blackjack.history.pop();
+    saveState();
+    renderBlackjack();
+  }
+
+  function renderBlackjack() {
+    const chips = state.cards.bj.bankroll;
+    $('#bjBankroll').textContent = formatBankroll(chips);
+    $('#bjDeckInfo').textContent = `🂠 ${blackjack.shoe.deck.length} 張 · 洗牌 #${blackjack.shoe.seed}`;
+    $('#bjBetAmount').textContent = formatBankroll(blackjack.bet);
+    $('#bjPlayerTotal').textContent = blackjack.player.length ? `點數 ${blackjackValue(blackjack.player)}` : '點數 —';
+    $('#bjDealerTotal').textContent = blackjack.dealer.length
+      ? (blackjack.reveal ? `點數 ${blackjackValue(blackjack.dealer)}` : `點數 ${blackjackValue(blackjack.dealer.slice(0, 1))} + ?`)
+      : '點數 —';
+    $('#bjPlayerHint').textContent = blackjack.doubled ? '已加倍' : (blackjack.player.length === 2 && blackjackValue(blackjack.player) === 21 ? '21 點！' : '');
+    $('#bjDealerHint').textContent = blackjack.reveal ? '莊家已翻牌' : '暗牌一張';
+    renderHand($('#bjDealerCards'), blackjack.dealer, { slots: Math.max(2, blackjack.dealer.length), down: !blackjack.reveal });
+    renderHand($('#bjPlayerCards'), blackjack.player, { slots: Math.max(2, blackjack.player.length) });
+
+    let message = blackjack.bet > 0 ? '按「發牌」開始本局' : '先選下注金額';
+    if (blackjack.stage === 'playing') message = `你 ${blackjackValue(blackjack.player)} 點：要牌、停牌，或加倍`;
+    if (blackjack.stage === 'over') message = blackjack.result;
+    $('#bjMessage').textContent = message;
+
+    const pill = $('#bjResultPill');
+    pill.textContent = blackjack.stage === 'over'
+      ? (blackjack.kind === 'win' ? '你贏了' : blackjack.kind === 'loss' ? '你輸了' : '和局')
+      : (blackjack.stage === 'playing' ? '進行中' : '下注中');
+
+    const actions = $('#bjActions');
+    actions.textContent = '';
+    if (blackjack.stage === 'playing') {
+      addActionButton(actions, '要牌', bjHit, 'is-primary');
+      addActionButton(actions, '停牌', bjStand);
+      if (blackjack.player.length === 2 && !blackjack.doubled) addActionButton(actions, '加倍 ×2', bjDouble);
+    }
+
+    $$('[data-bj-bet]').forEach((button) => {
+      const selected = button.dataset.bjBet === 'all' ? blackjack.bet === chips && chips > 0 : Number(button.dataset.bjBet) === blackjack.bet;
+      button.classList.toggle('is-selected', selected && blackjack.stage !== 'playing');
+    });
+
+    const dealButton = $('#bjDealButton');
+    dealButton.disabled = blackjack.stage !== 'bet' || blackjack.bet <= 0 || chips < blackjack.bet;
+    dealButton.innerHTML = blackjack.stage === 'over' ? '再開一局 <span>↗</span>' : '發牌 <span>↗</span>';
+
+    const historyEl = $('#bjHistory');
+    historyEl.textContent = '';
+    if (!blackjack.history.length) historyEl.innerHTML = '<span class="log-empty">還沒有紀錄</span>';
+    blackjack.history.forEach((entry) => {
+      const line = document.createElement('div');
+      line.className = `log-line is-${entry.kind}`;
+      line.textContent = entry.text;
+      historyEl.appendChild(line);
+    });
+
+    const rounds = state.cards.bj.rounds;
+    const wins = state.cards.bj.wins;
+    const rate = rounds > 0 ? Math.round((wins / rounds) * 100) : 0;
+    $('#bjStats').innerHTML = `
+      <div class="stat-row"><span>已玩局數</span><strong>${rounds}</strong></div>
+      <div class="stat-row"><span>你贏的局數</span><strong>${wins}</strong></div>
+      <div class="stat-row"><span>勝率</span><strong>${rate}%</strong></div>
+      <div class="stat-row"><span>牌鞋</span><strong>6 副 · 莊 17 停</strong></div>
+    `;
+  }
+
+  function bjResetChips() {
+    state.cards.bj.bankroll = 1000;
+    blackjack.stage = 'bet';
+    blackjack.player = [];
+    blackjack.dealer = [];
+    blackjack.bet = 0;
+    blackjack.reveal = false;
+    blackjack.result = '';
+    blackjack.kind = '';
+    blackjack.history = [];
+    saveState();
+    renderBlackjack();
+    showToast('籌碼已重置');
+  }
+
+  $$('[data-bj-bet]').forEach((button) => {
+    button.addEventListener('click', () => bjSetBet(button.dataset.bjBet));
+  });
+  $('#bjDealButton').addEventListener('click', () => {
+    if (blackjack.stage === 'over') {
+      blackjack.stage = 'bet';
+      blackjack.player = [];
+      blackjack.dealer = [];
+      blackjack.reveal = false;
+      blackjack.result = '';
+      blackjack.kind = '';
+    }
+    bjDeal();
+  });
+  $('#bjResetButton').addEventListener('click', bjResetChips);
+
+  // ===== 百家樂（人機 · 8 副牌鞋） =====
+  let baccarat = {
+    shoe: buildShoe(8),
+    player: [],
+    banker: [],
+    betSide: 'player',
+    bet: 0,
+    stage: 'bet', // bet | over
+    result: '',
+    kind: '',
+    note: '',
+    history: [],
+  };
+
+  const bacCardPoint = (rank) => (rank === 1 ? 1 : rank >= 10 ? 0 : rank);
+
+  const bacDraw = () => {
+    if (baccarat.shoe.deck.length < 20) {
+      baccarat.shoe = buildShoe(8);
+      baccarat.note = '牌剩不多，已自動重洗 8 副牌';
+    }
+    return baccarat.shoe.deck.pop();
+  };
+
+  const bacValue = (hand) => hand.reduce((sum, card) => (sum + bacCardPoint(card.rank)) % 10, 0);
+
+  function bacSetBet(amount) {
+    if (baccarat.stage === 'over') {
+      baccarat.stage = 'bet';
+      baccarat.player = [];
+      baccarat.banker = [];
+      baccarat.result = '';
+      baccarat.kind = '';
+      baccarat.note = '';
+    }
+    if (baccarat.stage !== 'bet') return;
+    const chips = state.cards.bac.bankroll;
+    baccarat.bet = amount === 'all' ? chips : Math.min(Number(amount) || 0, chips);
+    renderBaccarat();
+  }
+
+  function bacSetSide(side) {
+    if (baccarat.stage !== 'bet') {
+      showToast('先開下一局再改押注');
+      return;
+    }
+    baccarat.betSide = side;
+    renderBaccarat();
+  }
+
+  function bacPlay() {
+    if (baccarat.stage !== 'bet' || baccarat.bet <= 0) return;
+    if (state.cards.bac.bankroll < baccarat.bet) {
+      showToast('籌碼不足');
+      return;
+    }
+    state.cards.bac.bankroll -= baccarat.bet;
+    baccarat.stage = 'over';
+    baccarat.player = [bacDraw(), bacDraw()];
+    baccarat.banker = [bacDraw(), bacDraw()];
+    baccarat.result = '';
+    baccarat.kind = '';
+    baccarat.note = '';
+    let playerTotal = bacValue(baccarat.player);
+    let bankerTotal = bacValue(baccarat.banker);
+
+    if (playerTotal >= 8 || bankerTotal >= 8) {
+      baccarat.note = `天生 ${Math.max(playerTotal, bankerTotal)} 點，兩邊不補牌`;
+    } else {
+      let third = null;
+      if (playerTotal <= 5) {
+        const card = bacDraw();
+        baccarat.player.push(card);
+        third = bacCardPoint(card.rank);
+        baccarat.note = `閒家補第三張（${third} 點）`;
+      } else {
+        baccarat.note = '閒家 6/7 點，停牌';
+      }
+      const drawBanker = (() => {
+        if (third === null) return bankerTotal <= 5;
+        if (bankerTotal <= 2) return true;
+        if (bankerTotal === 3) return third !== 8;
+        if (bankerTotal === 4) return ![0, 1, 8, 9].includes(third);
+        if (bankerTotal === 5) return ![0, 1, 2, 3, 8, 9].includes(third);
+        if (bankerTotal === 6) return third === 6 || third === 7;
+        return false;
+      })();
+      if (drawBanker) {
+        baccarat.banker.push(bacDraw());
+        baccarat.note += '；莊家補第三張';
+      } else {
+        baccarat.note += '；莊家不補';
+      }
+    }
+    bacResolve();
+  }
+
+  function bacResolve() {
+    const player = bacValue(baccarat.player);
+    const banker = bacValue(baccarat.banker);
+    const side = player === banker ? 'tie' : player > banker ? 'player' : 'banker';
+    let kind = 'push';
+    let text = '';
+    if (side === 'tie') {
+      let back = baccarat.bet;
+      if (baccarat.betSide === 'tie') {
+        back += baccarat.bet * 8;
+        kind = 'win';
+        state.cards.bac.wins += 1;
+      }
+      state.cards.bac.bankroll += back;
+      text = baccarat.betSide === 'tie'
+        ? `和局 ${player}:${banker}！押「和」贏 ${formatBankroll(baccarat.bet * 8)}（8:1）`
+        : `和局 ${player}:${banker}，下注退回`;
+    } else if (side === baccarat.betSide) {
+      kind = 'win';
+      state.cards.bac.wins += 1;
+      if (side === 'player') {
+        state.cards.bac.bankroll += baccarat.bet * 2;
+        text = `閒贏 ${player}:${banker}，你贏 ${formatBankroll(baccarat.bet)}`;
+      } else {
+        state.cards.bac.bankroll += baccarat.bet + Math.floor(baccarat.bet * 0.95);
+        text = `莊贏 ${player}:${banker}（5% 抽水），你贏 ${formatBankroll(Math.floor(baccarat.bet * 0.95))}`;
+      }
+    } else {
+      kind = 'loss';
+      text = `${side === 'player' ? '閒' : '莊'} 贏 ${player}:${banker}，你輸 ${formatBankroll(baccarat.bet)}`;
+    }
+    state.cards.bac.rounds += 1;
+    baccarat.result = text;
+    baccarat.kind = kind;
+    baccarat.history.push(side);
+    if (baccarat.history.length > 12) baccarat.history.shift();
+    saveState();
+    renderBaccarat();
+  }
+
+  function renderBaccarat() {
+    const chips = state.cards.bac.bankroll;
+    $('#bacBankroll').textContent = formatBankroll(chips);
+    $('#bacDeckInfo').textContent = `🂠 ${baccarat.shoe.deck.length} 張 · 洗牌 #${baccarat.shoe.seed}`;
+    $('#bacBetAmount').textContent = formatBankroll(baccarat.bet);
+    $('#bacPlayerTotal').textContent = baccarat.player.length ? `點數 ${bacValue(baccarat.player)}` : '點數 —';
+    $('#bacBankerTotal').textContent = baccarat.banker.length ? `點數 ${bacValue(baccarat.banker)}` : '點數 —';
+    $('#bacThirdNote').textContent = baccarat.note;
+    renderHand($('#bacPlayerCards'), baccarat.player, { slots: Math.max(2, baccarat.player.length) });
+    renderHand($('#bacBankerCards'), baccarat.banker, { slots: Math.max(2, baccarat.banker.length) });
+
+    $('#bacMessage').textContent = baccarat.stage === 'over'
+      ? baccarat.result
+      : (baccarat.bet > 0 ? '按「開牌」發牌' : '先選要押哪邊');
+    const pill = $('#bacResultPill');
+    pill.textContent = baccarat.stage === 'over'
+      ? (baccarat.kind === 'win' ? '你贏了' : baccarat.kind === 'loss' ? '你輸了' : '和局')
+      : '下注中';
+
+    $$('[data-bac-side]').forEach((button) => {
+      button.classList.toggle('is-selected', button.dataset.bacSide === baccarat.betSide);
+    });
+    $$('[data-bac-bet]').forEach((button) => {
+      const selected = button.dataset.bacBet === 'all' ? baccarat.bet === chips && chips > 0 : Number(button.dataset.bacBet) === baccarat.bet;
+      button.classList.toggle('is-selected', selected);
+    });
+
+    const dealButton = $('#bacDealButton');
+    dealButton.disabled = baccarat.stage !== 'bet' || baccarat.bet <= 0 || chips < baccarat.bet;
+    dealButton.innerHTML = baccarat.stage === 'over' ? '再開一局 <span>↗</span>' : '開牌 <span>↗</span>';
+
+    const routeEl = $('#bacHistory');
+    routeEl.textContent = '';
+    if (!baccarat.history.length) routeEl.innerHTML = '<span class="log-empty">還沒有紀錄</span>';
+    baccarat.history.forEach((side) => {
+      const chip = document.createElement('span');
+      chip.className = `route-chip route-${side}`;
+      chip.textContent = side === 'player' ? '閒' : side === 'banker' ? '莊' : '和';
+      routeEl.appendChild(chip);
+    });
+
+    const rounds = state.cards.bac.rounds;
+    const wins = state.cards.bac.wins;
+    const rate = rounds > 0 ? Math.round((wins / rounds) * 100) : 0;
+    $('#bacStats').innerHTML = `
+      <div class="stat-row"><span>已玩局數</span><strong>${rounds}</strong></div>
+      <div class="stat-row"><span>你押中的局數</span><strong>${wins}</strong></div>
+      <div class="stat-row"><span>命中率</span><strong>${rate}%</strong></div>
+      <div class="stat-row"><span>牌鞋</span><strong>8 副 · 標準補牌</strong></div>
+    `;
+  }
+
+  function bacResetChips() {
+    state.cards.bac.bankroll = 1000;
+    baccarat.stage = 'bet';
+    baccarat.player = [];
+    baccarat.banker = [];
+    baccarat.bet = 0;
+    baccarat.result = '';
+    baccarat.kind = '';
+    baccarat.note = '';
+    baccarat.history = [];
+    saveState();
+    renderBaccarat();
+    showToast('籌碼已重置');
+  }
+
+  $$('[data-bac-bet]').forEach((button) => {
+    button.addEventListener('click', () => bacSetBet(button.dataset.bacBet));
+  });
+  $$('[data-bac-side]').forEach((button) => {
+    button.addEventListener('click', () => bacSetSide(button.dataset.bacSide));
+  });
+  $('#bacDealButton').addEventListener('click', () => {
+    if (baccarat.stage === 'over') {
+      baccarat.stage = 'bet';
+      baccarat.player = [];
+      baccarat.banker = [];
+      baccarat.result = '';
+      baccarat.kind = '';
+      baccarat.note = '';
+    }
+    bacPlay();
+  });
+  $('#bacResetButton').addEventListener('click', bacResetChips);
+
+  function resetCardPlaySessions() {
+    texasResetChips();
+    bjResetChips();
+    bacResetChips();
+  }
+
+  renderTexas();
+  renderBlackjack();
+  renderBaccarat();
+
   // Clear local data dialog
   const clearDataModal = $('#clearDataModal');
   $('#clearDataButton').addEventListener('click', () => {
@@ -7324,6 +8477,7 @@
     resetAgentSync();
     try { localStorage.removeItem(STORAGE_KEY); } catch (error) { /* ignore */ }
     state = defaultState();
+    resetCardPlaySessions();
     renderDice();
     renderWheelOptions();
     wheelRotation = 0;
