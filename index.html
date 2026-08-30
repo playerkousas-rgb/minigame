@@ -13,7 +13,7 @@
   <body>
     <div class="app-shell">
       <header class="topbar">
-        <a class="brand" href="#top" aria-label="出門玩首頁">
+        <a class="brand" href="#top" data-go-home aria-label="出門玩首頁">
           <span class="brand-mark" aria-hidden="true">✦</span>
           <span class="brand-copy">
             <span class="brand-overline">POCKET PLAY</span>
@@ -32,59 +32,318 @@
       </header>
 
       <main id="top">
-        <section class="welcome-block" aria-labelledby="page-title">
-          <div class="welcome-copy">
-            <p class="eyebrow">NO SIGNAL. NO PROBLEM.</p>
-            <h1 id="page-title">把下一局的<br /><em>好玩</em>帶在身上。</h1>
-            <p class="welcome-description">骰子、幸運輪，還有幾個不用網路就能開玩的隨手工具。揪到人就能開始。</p>
+        <section class="app-view is-active" id="view-home" aria-label="首頁">
+          <div class="welcome-block" aria-labelledby="page-title">
+            <div class="welcome-copy">
+              <p class="eyebrow">NO SIGNAL. NO PROBLEM.</p>
+              <h1 id="page-title">把下一局的<br /><em>好玩</em>帶在身上。</h1>
+              <p class="welcome-description">骰子、撲克、陣營遊戲和隨手工具都收進這台手機。每個遊戲都有說明書，揪到人就能開始。</p>
+            </div>
+            <div class="welcome-orbit" aria-hidden="true">
+              <span class="orbit-ring orbit-ring-one"></span>
+              <span class="orbit-ring orbit-ring-two"></span>
+              <span class="orbit-dot orbit-dot-one"></span>
+              <span class="orbit-dot orbit-dot-two"></span>
+              <span class="orbit-die">⚄</span>
+            </div>
           </div>
-          <div class="welcome-orbit" aria-hidden="true">
-            <span class="orbit-ring orbit-ring-one"></span>
-            <span class="orbit-ring orbit-ring-two"></span>
-            <span class="orbit-dot orbit-dot-one"></span>
-            <span class="orbit-dot orbit-dot-two"></span>
-            <span class="orbit-die">⚄</span>
+
+          <div class="promise-row" aria-label="產品特色">
+            <div class="promise-item"><span class="promise-icon">⌁</span><span>離線可玩</span></div>
+            <div class="promise-item"><span class="promise-icon">☷</span><span>資料留在手機</span></div>
+            <div class="promise-item"><span class="promise-icon">↗</span><span>適合多人</span></div>
+            <div class="promise-item"><span class="promise-icon">🂡</span><span>加密級隨機發牌</span></div>
+          </div>
+
+          <div class="home-pick">
+            <div class="home-pick-head">
+              <p class="section-kicker">FOUR SHELVES · 四格分類</p>
+              <h2>選一個分類開始</h2>
+              <p>遊戲和工具分開排好：先挑四大類，再進分類挑想玩的那一款。每款遊戲都附玩法說明書，不用先查規則。</p>
+            </div>
+
+            <div class="category-grid" aria-label="四大分類">
+              <button class="category-card category-dice" data-category="dice" type="button">
+                <span class="category-emoji" aria-hidden="true">🎲</span>
+                <span class="category-copy">
+                  <span class="category-kicker">DICE GAMES</span>
+                  <strong>骰子遊戲</strong>
+                  <span class="category-desc">骰子工具 · 大話骰 · 多人骰子房</span>
+                  <span class="category-count">3 款</span>
+                </span>
+                <span class="category-arrow" aria-hidden="true">→</span>
+              </button>
+              <button class="category-card category-cards" data-category="cards" type="button">
+                <span class="category-emoji" aria-hidden="true">🃏</span>
+                <span class="category-copy">
+                  <span class="category-kicker">CARD GAMES</span>
+                  <strong>卡牌遊戲</strong>
+                  <span class="category-desc">德州撲克 · 21 點 · 百家樂 · 機密特務</span>
+                  <span class="category-count">4 款</span>
+                </span>
+                <span class="category-arrow" aria-hidden="true">→</span>
+              </button>
+              <button class="category-card category-talk" data-category="talk" type="button">
+                <span class="category-emoji" aria-hidden="true">💬</span>
+                <span class="category-copy">
+                  <span class="category-kicker">PARTY TALK</span>
+                  <strong>對話遊戲</strong>
+                  <span class="category-desc">狼人殺 · 一夜狼人 · 誰是臥底</span>
+                  <span class="category-count">3 款</span>
+                </span>
+                <span class="category-arrow" aria-hidden="true">→</span>
+              </button>
+              <button class="category-card category-tools" data-category="tools" type="button">
+                <span class="category-emoji" aria-hidden="true">🧰</span>
+                <span class="category-copy">
+                  <span class="category-kicker">POCKET TOOLS</span>
+                  <strong>小工具</strong>
+                  <span class="category-desc">幸運輪 · 隨機分隊 · 硬幣 · 計分板 · 倒數</span>
+                  <span class="category-count">5 款</span>
+                </span>
+                <span class="category-arrow" aria-hidden="true">→</span>
+              </button>
+            </div>
+
+            <div class="home-fair-note">
+              <span aria-hidden="true">🂠</span>
+              <span>德州撲克、21 點、百家樂全部使用瀏覽器<strong>加密級隨機源（Crypto RNG）</strong>洗牌，每局獨立、無辦法預測或動手腳；發牌不靠伺服器，離線也能玩。</span>
+            </div>
           </div>
         </section>
 
-        <div class="promise-row" aria-label="產品特色">
-          <div class="promise-item"><span class="promise-icon">⌁</span><span>離線可玩</span></div>
-          <div class="promise-item"><span class="promise-icon">☷</span><span>資料留在手機</span></div>
-          <div class="promise-item"><span class="promise-icon">↗</span><span>適合多人</span></div>
-        </div>
+        <section class="app-view" id="view-cat-dice" role="region" aria-label="骰子遊戲分類" hidden>
+          <div class="category-page">
+            <button class="back-button" data-back="home" type="button">← 返回首頁</button>
+            <div class="category-page-head">
+              <div class="category-page-emoji" aria-hidden="true">🎲</div>
+              <div>
+                <p class="section-kicker">DICE GAMES</p>
+                <h2>骰子遊戲</h2>
+                <p>擲骰子、吹牛、多人同擲一局。骰面平常全黑、按住才偷看，適合酒桌和桌遊輔助。</p>
+              </div>
+            </div>
+            <div class="cat-group">
+              <div class="cat-group-head"><h3>擲骰與吹牛</h3><span>單機 · 離線</span></div>
+              <div class="game-entry-grid">
+                <button class="game-entry" data-game="dice" type="button">
+                  <span class="game-entry-emoji" aria-hidden="true">⚄</span>
+                  <span class="game-entry-copy">
+                    <strong>骰子工具</strong>
+                    <span>1–12 顆、2–100 面，搖一搖換骰，按住偷看。</span>
+                  </span>
+                  <span class="game-entry-go">開始 →</span>
+                </button>
+                <button class="game-entry" data-game="dice" data-anchor="diceSync" type="button">
+                  <span class="game-entry-emoji" aria-hidden="true">📱</span>
+                  <span class="game-entry-copy">
+                    <strong>多人骰子房</strong>
+                    <span>每人掃 QR 加入，誰搖骰子全場同步；切「隱藏」就是大話骰。</span>
+                  </span>
+                  <span class="game-entry-go">開始 →</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
 
-        <nav class="mode-tabs" role="tablist" aria-label="遊戲工具分類">
-          <button class="mode-tab is-active" id="tab-dice" type="button" role="tab" aria-selected="true" aria-controls="view-dice" data-view="dice">
-            <span class="tab-number">01</span>
-            <span>骰子</span>
-          </button>
-          <button class="mode-tab" id="tab-wheel" type="button" role="tab" aria-selected="false" aria-controls="view-wheel" data-view="wheel">
-            <span class="tab-number">02</span>
-            <span>幸運輪</span>
-          </button>
-          <button class="mode-tab" id="tab-tools" type="button" role="tab" aria-selected="false" aria-controls="view-tools" data-view="tools">
-            <span class="tab-number">03</span>
-            <span>隨手工具</span>
-          </button>
-          <button class="mode-tab" id="tab-wolf" type="button" role="tab" aria-selected="false" aria-controls="view-wolf" data-view="wolf">
-            <span class="tab-number">04</span>
-            <span>狼人殺</span>
-          </button>
-          <button class="mode-tab" id="tab-spy" type="button" role="tab" aria-selected="false" aria-controls="view-spy" data-view="spy">
-            <span class="tab-number">05</span>
-            <span>誰是臥底</span>
-          </button>
-          <button class="mode-tab" id="tab-one" type="button" role="tab" aria-selected="false" aria-controls="view-one" data-view="one">
-            <span class="tab-number">06</span>
-            <span>一夜狼人</span>
-          </button>
-          <button class="mode-tab" id="tab-agent" type="button" role="tab" aria-selected="false" aria-controls="view-agent" data-view="agent">
-            <span class="tab-number">07</span>
-            <span>機密特務</span>
-          </button>
-        </nav>
+        <section class="app-view" id="view-cat-cards" role="region" aria-label="卡牌遊戲分類" hidden>
+          <div class="category-page">
+            <button class="back-button" data-back="home" type="button">← 返回首頁</button>
+            <div class="category-page-head">
+              <div class="category-page-emoji" aria-hidden="true">🃏</div>
+              <div>
+                <p class="section-kicker">CARD GAMES</p>
+                <h2>卡牌遊戲</h2>
+                <p>人機對戰的賭場撲克，加上可以一群人玩的機密特務。所有牌局都附完整規則說明。</p>
+              </div>
+            </div>
+            <div class="cat-group">
+              <div class="cat-group-head"><h3>賭場撲克 · 你 vs 電腦</h3><span>單機 · Crypto RNG</span></div>
+              <div class="game-entry-grid">
+                <button class="game-entry game-entry-new" data-game="texas" type="button">
+                  <span class="game-entry-emoji" aria-hidden="true">🂡</span>
+                  <span class="game-entry-copy">
+                    <strong>德州撲克 <em class="new-tag">NEW</em></strong>
+                    <span>多人：每人一機掃 QR 加入，2–8 人一桌；也能單機 vs 電腦。盲注、翻牌轉牌河牌、加注全下。</span>
+                  </span>
+                  <span class="game-entry-go">開始 →</span>
+                </button>
+                <button class="game-entry game-entry-new" data-game="bj" type="button">
+                  <span class="game-entry-emoji" aria-hidden="true">♠</span>
+                  <span class="game-entry-copy">
+                    <strong>21 點 <em class="new-tag">NEW</em></strong>
+                    <span>多人：掃 QR 加入輪流要牌停牌；也能單機 vs 莊家。黑傑克 3:2，莊家 17 點停牌。</span>
+                  </span>
+                  <span class="game-entry-go">開始 →</span>
+                </button>
+                <button class="game-entry game-entry-new" data-game="bac" type="button">
+                  <span class="game-entry-emoji" aria-hidden="true">🃏</span>
+                  <span class="game-entry-copy">
+                    <strong>百家樂 <em class="new-tag">NEW</em></strong>
+                    <span>多人：每人一機押閒莊和；也能單機。八副牌鞋、完整補牌規則、路單。</span>
+                  </span>
+                  <span class="game-entry-go">開始 →</span>
+                </button>
+              </div>
+            </div>
+            <div class="cat-group">
+              <div class="cat-group-head"><h3>派對卡牌</h3><span>多人 · 需網路或離線傳手機</span></div>
+              <div class="game-entry-grid">
+                <button class="game-entry" data-game="agent" type="button">
+                  <span class="game-entry-emoji" aria-hidden="true">🕴️</span>
+                  <span class="game-entry-copy">
+                    <strong>機密特務（Codenames）</strong>
+                    <span>25 詞 5×5，隊長看答案卡給提示，隊員猜詞；猜中炸彈直接輸。</span>
+                  </span>
+                  <span class="game-entry-go">開始 →</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
 
-        <section class="app-view is-active" id="view-dice" role="tabpanel" aria-labelledby="tab-dice">
+        <section class="app-view" id="view-cat-talk" role="region" aria-label="對話遊戲分類" hidden>
+          <div class="category-page">
+            <button class="back-button" data-back="home" type="button">← 返回首頁</button>
+            <div class="category-page-head">
+              <div class="category-page-emoji" aria-hidden="true">💬</div>
+              <div>
+                <p class="section-kicker">PARTY TALK</p>
+                <h2>對話遊戲</h2>
+                <p>靠發言和推理分出勝負的陣營派對遊戲。一人一機收秘密身份，也可以一台手機輪流傳。</p>
+              </div>
+            </div>
+            <div class="cat-group">
+              <div class="cat-group-head"><h3>陣營推理</h3><span>4–12 人</span></div>
+              <div class="game-entry-grid">
+                <button class="game-entry" data-game="wolf" type="button">
+                  <span class="game-entry-emoji" aria-hidden="true">🐺</span>
+                  <span class="game-entry-copy">
+                    <strong>狼人殺</strong>
+                    <span>夜晚閉眼行動、白天投票放逐，6–12 人、四種版本、語音導播。</span>
+                  </span>
+                  <span class="game-entry-go">開始 →</span>
+                </button>
+                <button class="game-entry" data-game="one" type="button">
+                  <span class="game-entry-emoji" aria-hidden="true">🌙</span>
+                  <span class="game-entry-copy">
+                    <strong>一夜狼人</strong>
+                    <span>一晚定勝負：角色會互換，天亮投票一次就結束，4–6 人約 10 分鐘。</span>
+                  </span>
+                  <span class="game-entry-go">開始 →</span>
+                </button>
+              </div>
+            </div>
+            <div class="cat-group">
+              <div class="cat-group-head"><h3>描述猜詞</h3><span>4–12 人</span></div>
+              <div class="game-entry-grid">
+                <button class="game-entry" data-game="spy" type="button">
+                  <span class="game-entry-emoji" aria-hidden="true">🕵️</span>
+                  <span class="game-entry-copy">
+                    <strong>誰是臥底 / 間諜危機</strong>
+                    <span>一人一個秘密詞，輪流描述揪出臥底；內建 130+ 組詞對，可自訂。</span>
+                  </span>
+                  <span class="game-entry-go">開始 →</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="app-view" id="view-cat-tools" role="region" aria-label="小工具分類" hidden>
+          <div class="category-page">
+            <button class="back-button" data-back="home" type="button">← 返回首頁</button>
+            <div class="category-page-head">
+              <div class="category-page-emoji" aria-hidden="true">🧰</div>
+              <div>
+                <p class="section-kicker">POCKET TOOLS</p>
+                <h2>小工具</h2>
+                <p>不屬於「遊戲」但聚會一定用得到的幫手：決定、分隊、計分、計時。</p>
+              </div>
+            </div>
+            <div class="cat-group">
+              <div class="cat-group-head"><h3>隨機決定</h3><span>單機 · 離線</span></div>
+              <div class="game-entry-grid">
+                <button class="game-entry" data-game="wheel" type="button">
+                  <span class="game-entry-emoji" aria-hidden="true">🎡</span>
+                  <span class="game-entry-copy">
+                    <strong>幸運輪</strong>
+                    <span>最多 12 個選項，內建聚會、獎勵、懲罰範本，轉一下決定。</span>
+                  </span>
+                  <span class="game-entry-go">開始 →</span>
+                </button>
+                <button class="game-entry" data-game="tools" data-anchor="toolCoin" type="button">
+                  <span class="game-entry-emoji" aria-hidden="true">◐</span>
+                  <span class="game-entry-copy">
+                    <strong>硬幣</strong>
+                    <span>正反面二選一，拋一下把選擇交給運氣。</span>
+                  </span>
+                  <span class="game-entry-go">開始 →</span>
+                </button>
+              </div>
+            </div>
+            <div class="cat-group">
+              <div class="cat-group-head"><h3>分組與計分</h3><span>單機 · 可連線</span></div>
+              <div class="game-entry-grid">
+                <button class="game-entry" data-game="tools" data-anchor="toolTeam" type="button">
+                  <span class="game-entry-emoji" aria-hidden="true">✦</span>
+                  <span class="game-entry-copy">
+                    <strong>隨機分隊</strong>
+                    <span>輸入名字和隊數，平均隨機分配，最多 24 人 8 隊。</span>
+                  </span>
+                  <span class="game-entry-go">開始 →</span>
+                </button>
+                <button class="game-entry" data-game="tools" data-anchor="toolScore" type="button">
+                  <span class="game-entry-emoji" aria-hidden="true">＋</span>
+                  <span class="game-entry-copy">
+                    <strong>多人計分板</strong>
+                    <span>2–12 人本局加分扣分，也可掃 QR 各自記分即時同步。</span>
+                  </span>
+                  <span class="game-entry-go">開始 →</span>
+                </button>
+              </div>
+            </div>
+            <div class="cat-group">
+              <div class="cat-group-head"><h3>計時提醒</h3><span>單機 · 離線</span></div>
+              <div class="game-entry-grid">
+                <button class="game-entry" data-game="tools" data-anchor="toolTimer" type="button">
+                  <span class="game-entry-emoji" aria-hidden="true">◷</span>
+                  <span class="game-entry-copy">
+                    <strong>活動倒數</strong>
+                    <span>30 秒、1 分鐘、3 分鐘預設，限時挑戰或懲罰時間。</span>
+                  </span>
+                  <span class="game-entry-go">開始 →</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="app-view" id="view-dice" role="tabpanel" aria-labelledby="tab-dice" hidden>
+          <div class="game-page-head">
+            <button class="back-button" data-back="cat-dice" type="button">← 骰子遊戲</button>
+            <span class="game-page-meta">📖 說明書在下方，也可隨時展開</span>
+          </div>
+          <details class="game-rules manual-rules" open>
+            <summary>📖 骰子遊戲玩法說明書</summary>
+            <div class="manual-body">
+              <div class="manual-col">
+                <h4>🎯 目標</h4>
+                <p>用骰子產生「真正隨機」的數字，當作遊戲判定或酒桌工具。大話骰模式則是要看穿別人、藏好自己的骰面。</p>
+                <h4>👥 適合人數</h4>
+                <p>骰子工具：1 人以上。多人骰子房：2–12 人（每人一台手機）。</p>
+                <h4>🧰 準備</h4>
+                <p>設定骰子數量（1–12 顆）與每顆面數（2–100 面，預設 D6）。骰面一開始保持全黑，<strong>按住骰子才看得到結果</strong>；想換骰子就搖動手機（需先按「啟用搖一搖」並允許動作感應）。沒有感應器的裝置可用「模擬搖動」。</p>
+                <h4>🎲 怎麼玩</h4>
+                <p>搖動手機換骰 → 按住骰面偷看 → 決定下一位行動、懲罰或遊戲進度。多人同局時建立「多人骰子房」，每人掃自己的 QR 加入，誰搖手機全場的骰子都會同步。</p>
+                <h4>🔒 大話骰模式</h4>
+                <p>在多人骰子房把骰面切到「隱藏」，每個人的骰子只有自己按住才看得到。接著按人數喊數（例：3 個 5），不信就「開」；骰子總數符合要的數量就是喊的人贏。本工具負責保密與驗骰，規則由現場約定。</p>
+                <h4>💡 小提示</h4>
+                <p>手機開靜音也會用短震動提示已換骰。多人房需要網路（PeerJS 點對點）；純單機骰子離線可用。</p>
+              </div>
+            </div>
+          </details>
           <div class="section-heading">
             <div>
               <p class="section-kicker">SHAKE TO ROLL</p>
@@ -228,6 +487,29 @@
         </section>
 
         <section class="app-view" id="view-wheel" role="tabpanel" aria-labelledby="tab-wheel" hidden>
+          <div class="game-page-head">
+            <button class="back-button" data-back="cat-tools" type="button">← 小工具</button>
+            <span class="game-page-meta">📖 說明書在下方，也可隨時展開</span>
+          </div>
+          <details class="game-rules manual-rules" open>
+            <summary>📖 幸運輪玩法說明書</summary>
+            <div class="manual-body">
+              <div class="manual-col">
+                <h4>🎯 目標</h4>
+                <p>把選項放進輪盤，轉一下讓指針公平地選出下一個：誰先、做什麼、懲罰誰，通通交給運氣。</p>
+                <h4>👥 適合人數</h4>
+                <p>1 人以上；最適合 2–12 人聚會。</p>
+                <h4>🧰 準備</h4>
+                <p>下方編輯區輸入獎勵、懲罰或任務（最多 12 項），或直接套用「聚會 / 獎勵 / 懲罰」範本。每一項限 24 字。</p>
+                <h4>🎡 怎麼玩</h4>
+                <p>① 檢查輪盤上的選項是否正確 → ② 按「開始轉」→ ③ 聽著音樂停下來後，指針指的項目就是結果 → ④ 執行它，或按「再轉一次」。</p>
+                <h4>🏁 勝負</h4>
+                <p>幸運輪沒有固定勝負：誰被輪到就照著選項做。也可以約定「做過的人坐回去、沒做過的繼續轉」直到全員完成。</p>
+                <h4>💡 小提示</h4>
+                <p>選項只儲存在這台手機（localStorage），重新開 App 還會在；不需要登入或上網。</p>
+              </div>
+            </div>
+          </details>
           <div class="section-heading">
             <div>
               <p class="section-kicker">MAKE YOUR ODDS</p>
@@ -280,6 +562,29 @@
         </section>
 
         <section class="app-view" id="view-tools" role="tabpanel" aria-labelledby="tab-tools" hidden>
+          <div class="game-page-head">
+            <button class="back-button" data-back="cat-tools" type="button">← 小工具</button>
+            <span class="game-page-meta">📖 四個工具都有說明</span>
+          </div>
+          <details class="game-rules manual-rules manual-wide" open>
+            <summary>📖 小工具使用說明書</summary>
+            <div class="manual-body">
+              <div class="manual-col">
+                <h4>✦ 隨機分隊</h4>
+                <p>輸入「現有人數」和參加者名字（每行一個），再選要分幾隊（2–8 隊），按「開始分隊」會盡量平均隨機分配，並列出每隊成員。適合六角棋、躲避球或分組競賽。</p>
+                <h4>◐ 硬幣</h4>
+                <p>按「拋硬幣」決定正或反：誰先、去哪裡、要不要加一碗，二選一交給運氣。快速連按兩下就是乾淨的隨機結果。</p>
+              </div>
+              <div class="manual-col">
+                <h4>＋ 多人計分板</h4>
+                <p>設定 2–12 個玩家或隊伍，改名後每局在各行輸入本局分數，再按「加分 / 扣分」累計。重開 App 分數還在；按「所有分數歸零」可開始新遊戲。「多人連線記分」需要網路：建立房間後每人掃自己的 QR，就能各自記分並即時看到全表。</p>
+                <h4>◷ 活動倒數</h4>
+                <p>選 30 秒 / 1 分鐘 / 3 分鐘（或之後可自訂），按「開始」倒數，時間到會震動並提示。適合限時挑戰、你畫我猜、發言計時或懲罰時間。</p>
+                <h4>💡 共同提示</h4>
+                <p>所有小工具都靠瀏覽器隨機源，不需要網路；資料只留在這台手機。</p>
+              </div>
+            </div>
+          </details>
           <div class="section-heading">
             <div>
               <p class="section-kicker">OUTDOOR TOOLKIT</p>
@@ -290,7 +595,7 @@
           </div>
 
           <div class="tools-grid">
-            <article class="tool-card tool-card-picker">
+            <article class="tool-card tool-card-picker" id="toolTeam">
               <div class="tool-card-heading">
                 <div class="tool-symbol purple-symbol" aria-hidden="true">✦</div>
                 <div><p class="tool-card-kicker">SHUFFLE TEAMS</p><h3>隨機分隊</h3></div>
@@ -315,7 +620,7 @@
               <div class="team-result" id="teamResult" aria-live="polite"><span>填好名字就可以開始</span></div>
             </article>
 
-            <article class="tool-card tool-card-coin">
+            <article class="tool-card tool-card-coin" id="toolCoin">
               <div class="tool-card-heading">
                 <div class="tool-symbol yellow-symbol" aria-hidden="true">◐</div>
                 <div><p class="tool-card-kicker">HEADS OR TAILS</p><h3>硬幣</h3></div>
@@ -328,7 +633,7 @@
               </div>
             </article>
 
-            <article class="tool-card tool-card-score">
+            <article class="tool-card tool-card-score" id="toolScore">
               <div class="tool-card-heading">
                 <div class="tool-symbol green-symbol" aria-hidden="true">＋</div>
                 <div><p class="tool-card-kicker">KEEP SCORE</p><h3>多人計分板</h3></div>
@@ -378,7 +683,7 @@
               </div>
             </article>
 
-            <article class="tool-card tool-card-timer">
+            <article class="tool-card tool-card-timer" id="toolTimer">
               <div class="tool-card-heading">
                 <div class="tool-symbol blue-symbol" aria-hidden="true">◷</div>
                 <div><p class="tool-card-kicker">COUNTDOWN</p><h3>活動倒數</h3></div>
@@ -398,6 +703,10 @@
           </div>
         </section>
         <section class="app-view" id="view-wolf" role="tabpanel" aria-labelledby="tab-wolf" hidden>
+          <div class="game-page-head">
+            <button class="back-button" data-back="cat-talk" type="button">← 對話遊戲</button>
+            <span class="game-page-meta">📖 在「建立房間」內有玩法說明</span>
+          </div>
           <div class="section-heading">
             <div>
               <p class="section-kicker">WHO'S THE WOLF</p>
@@ -480,6 +789,10 @@
         </section>
 
         <section class="app-view" id="view-spy" role="tabpanel" aria-labelledby="tab-spy" hidden>
+          <div class="game-page-head">
+            <button class="back-button" data-back="cat-talk" type="button">← 對話遊戲</button>
+            <span class="game-page-meta">📖 在「建立房間」內有玩法說明</span>
+          </div>
           <div class="section-heading">
             <div>
               <p class="section-kicker">WHO'S THE SPY</p>
@@ -595,6 +908,10 @@
         </section>
 
         <section class="app-view" id="view-one" role="tabpanel" aria-labelledby="tab-one" hidden>
+          <div class="game-page-head">
+            <button class="back-button" data-back="cat-talk" type="button">← 對話遊戲</button>
+            <span class="game-page-meta">📖 在「建立房間」內有玩法說明</span>
+          </div>
           <div class="section-heading">
             <div>
               <p class="section-kicker">ONE NIGHT</p>
@@ -676,6 +993,10 @@
         </section>
 
         <section class="app-view" id="view-agent" role="tabpanel" aria-labelledby="tab-agent" hidden>
+          <div class="game-page-head">
+            <button class="back-button" data-back="cat-cards" type="button">← 卡牌遊戲</button>
+            <span class="game-page-meta">📖 在「建立房間」內有玩法說明</span>
+          </div>
           <div class="section-heading">
             <div>
               <p class="section-kicker">CODENAMES</p>
@@ -790,6 +1111,351 @@
             </div>
             <div class="sync-status wolf-status" id="agentClientStatus" aria-live="polite">正在連線…</div>
             <div id="agentClientBody"></div>
+          </div>
+        </section>
+
+        <section class="app-view" id="view-texas" role="region" aria-label="德州撲克" hidden>
+          <div class="game-page-head">
+            <button class="back-button" data-back="cat-cards" type="button">← 卡牌遊戲</button>
+            <span class="game-page-meta">🂡 單機人機 · 加密隨機發牌</span>
+          </div>
+          <div class="section-heading">
+            <div>
+              <p class="section-kicker">TEXAS HOLD'EM</p>
+              <h2>德州撲克</h2>
+              <p>每人兩張暗牌、五張公共牌：下注、加注、棄牌，最後攤牌比牌型。可 2–8 人掃 QR 同桌，也可單機 vs 電腦。</p>
+            </div>
+            <div class="round-counter">
+              <span class="counter-label">我的籌碼</span>
+              <strong id="texasBankroll">1000</strong>
+              <span class="counter-suffix">枚</span>
+            </div>
+          </div>
+
+          <details class="game-rules manual-rules" open>
+            <summary>📖 德州撲克玩法說明書（人機對戰）</summary>
+            <div class="manual-body">
+              <div class="manual-col">
+                <h4>🎯 目標</h4>
+                <p>用你手上的 <strong>2 張暗牌</strong> 加上 <strong>5 張公共牌</strong>，湊出比電腦大的五張牌型；或者用下注讓電腦棄牌，直接贏下彩池。</p>
+                <h4>👥 人數</h4>
+                <p>本版是 <strong>你 vs 電腦</strong> 的單挑（Heads-Up）：你拿 1000 枚籌碼，電腦也是 1000 枚。盲注固定 <strong>小盲 5 / 大盲 10</strong>，莊家按鈕每局輪流。</p>
+                <h4>🧰 遊戲流程</h4>
+                <p>① <strong>發牌</strong>：每人兩張暗牌，先下盲注；<br>② <strong>翻牌前</strong>：決定棄牌、跟注或加注；<br>③ <strong>翻牌</strong>：開 3 張公共牌，再下注一輪；<br>④ <strong>轉牌</strong>：開第 4 張、再下注一輪；<br>⑤ <strong>河牌</strong>：開第 5 張、最後一輪下注；<br>⑥ <strong>攤牌</strong>：比牌型，贏家拿走整個彩池。</p>
+                <h4>🃏 牌型大小（由小到大）</h4>
+                <p>高牌 → 一對 → 兩對 → 三條 → 順子 → 同花 → 葫蘆 → 四條 → 同花順（A2345 是最小順子）。</p>
+                <h4>💰 下注按鈕</h4>
+                <p><strong>棄牌</strong>：這局放棄；<strong>過牌</strong>：不花籌碼等下一張；<strong>跟注</strong>：補上和電腦相同的注碼；<strong>加注</strong>：輸入新的注碼（最少為大盲的兩倍，即 20）；<strong>全下</strong>：把所有籌碼押進去。</p>
+                <h4>🏁 勝負與重置</h4>
+                <p>電腦跟你在同一副牌、同一規則下玩。一方籌碼不足兩倍大盲時可按「重置籌碼」雙方回到 1000 枚重新開局；戰績會記在右側（本機儲存）。</p>
+                <h4>🎲 公平性</h4>
+                <p>每局結束自動重新洗牌，洗牌使用瀏覽器 <strong>Crypto RNG</strong>（加密級隨機源），結果無法預測或控制。右上方會顯示該局洗牌種子（#XXXX）供核對。</p>
+              </div>
+            </div>
+          </details>
+
+          <div class="solo-mode-row card-mode-row" id="texasPlayMode" role="group" aria-label="遊玩模式">
+            <button type="button" class="solo-mode-option is-selected" data-playmode="solo" data-card-game="texas"><strong>🂡 單機人機</strong><small>一台手機 · 免網路</small></button>
+            <button type="button" class="solo-mode-option" data-playmode="online" data-card-game="texas"><strong>📱 多人連線</strong><small>每人一機 · 掃 QR 加入</small></button>
+          </div>
+
+          <div class="card-room wolf-panel panel-surface" id="texasRoom" hidden>
+            <div class="sync-heading">
+              <div class="sync-icon card-room-icon" aria-hidden="true">🂡</div>
+              <div class="sync-heading-copy">
+                <p class="tool-card-kicker">MULTI-DEVICE TEXAS</p>
+                <h4>多人德州撲克房間</h4>
+              </div>
+              <span class="sync-badge" id="texasRoomBadge">本機</span>
+            </div>
+            <div class="card-room-idle" id="texasRoomIdle">
+              <p class="sync-copy">這台手機是<b>莊家（主持人）</b>。其他人用手機<b>掃自己的 QR</b> 加入成為牌手，每人開局 1000 籌碼；所有發牌、結算都在這台手機用 Crypto RNG 完成，棋牌明牌暗牌由莊家手機統一廣播，不用道具。</p>
+              <div class="card-room-setup">
+                <label for="texasRoomPlayers">牌手人數</label>
+                <input class="mini-number" id="texasRoomPlayers" type="number" min="2" max="8" value="4" inputmode="numeric" />
+                <span class="setup-suffix">人 · 2–8 人</span>
+              </div>
+              <button class="button button-dark sync-create-button" id="createTexasRoomButton" type="button">建立多人德州撲克房間 <span>↗</span></button>
+            </div>
+            <div class="sync-status wolf-status" id="texasRoomStatus" aria-live="polite" hidden></div>
+            <div class="qr-grid" id="texasQrGrid" hidden></div>
+            <div class="card-room-stage" id="texasRoomStage" aria-live="polite"></div>
+            <button class="text-button" id="endTexasRoomButton" type="button" hidden>結束房間 <span>↺</span></button>
+          </div>
+
+          <div class="casino-layout" id="texasSolo">
+            <div class="casino-table panel-surface">
+              <div class="table-topline">
+                <span class="table-chip" id="texasDeckInfo">🂠 已洗牌</span>
+                <span class="table-chip" id="texasStreet">準備發牌</span>
+              </div>
+              <div class="casino-seat seat-dealer">
+                <div class="seat-head">
+                  <span class="seat-name" id="texasDealerLabel">🤖 電腦莊家</span>
+                  <span class="seat-chips" id="texasDealerChips">1000 枚</span>
+                </div>
+                <div class="hand-cards" id="texasDealerCards" aria-label="莊家手牌"></div>
+                <div class="seat-hint" id="texasDealerHint">暗牌 · 攤牌時公開</div>
+              </div>
+              <div class="table-center">
+                <div class="community-row" id="texasCommunity" aria-label="公共牌"></div>
+                <div class="pot-pill">彩池 <strong id="texasPot">0</strong> 枚</div>
+              </div>
+              <div class="casino-seat seat-player">
+                <div class="seat-head">
+                  <span class="seat-name" id="texasPlayerLabel">🧑 你</span>
+                  <span class="seat-chips" id="texasPlayerChips">1000 枚</span>
+                </div>
+                <div class="hand-cards" id="texasPlayerCards" aria-label="你的手牌"></div>
+                <div class="seat-hint" id="texasPlayerHint"></div>
+              </div>
+              <div class="table-message" id="texasMessage" aria-live="polite">按「發牌」開始新一局</div>
+              <div class="table-actions" id="texasActions"></div>
+              <div class="table-mini-row">
+                <button class="button button-primary" id="texasDealButton" type="button">發牌 <span>↗</span></button>
+                <button class="button button-quiet" id="texasResetButton" type="button">重置籌碼 <span>↺</span></button>
+              </div>
+            </div>
+            <aside class="casino-side panel-surface">
+              <h3>本局紀錄</h3>
+              <div class="round-log" id="texasLog" aria-live="polite"><span class="log-empty">還沒有紀錄</span></div>
+              <h3>戰績</h3>
+              <div class="game-stats" id="texasStats"></div>
+            </aside>
+          </div>
+        </section>
+
+        <section class="app-view" id="view-bj" role="region" aria-label="21點" hidden>
+          <div class="game-page-head">
+            <button class="back-button" data-back="cat-cards" type="button">← 卡牌遊戲</button>
+            <span class="game-page-meta">♠ 單機人機 · 加密隨機發牌</span>
+          </div>
+          <div class="section-heading">
+            <div>
+              <p class="section-kicker">BLACKJACK 21</p>
+              <h2>21 點</h2>
+              <p>和莊家比點數，不要超過 21：可 2–8 人掃 QR 同桌輪流要牌，也可單機 vs 莊家。黑傑克 3:2。</p>
+            </div>
+            <div class="round-counter">
+              <span class="counter-label">我的籌碼</span>
+              <strong id="bjBankroll">1000</strong>
+              <span class="counter-suffix">枚</span>
+            </div>
+          </div>
+
+          <details class="game-rules manual-rules" open>
+            <summary>📖 21 點玩法說明書（人機對戰）</summary>
+            <div class="manual-body">
+              <div class="manual-col">
+                <h4>🎯 目標</h4>
+                <p>你和你抽到的牌點數越接近 <strong>21 越好</strong>，但不能超過；最後和莊家比大小。</p>
+                <h4>🃏 點數算法</h4>
+                <p>A = 1 或 11（自動取最有利的）；2–10 = 面值；J / Q / K = 10。兩張牌就是 21（A + 10 點牌）叫做 <strong>黑傑克</strong>。</p>
+                <h4>💰 怎麼玩</h4>
+                <p><strong>📱 多人連線：</strong>莊家手機建立房間，牌手掃 QR 加入；牌手各自下注鎖定後莊家發牌，按座位輪流要牌、停牌、加倍，莊家最後補牌，各人比自己的點數。<strong>單機人機：</strong>選好下注金額 → 按「發牌」→ 選<strong>要牌</strong>／<strong>停牌</strong>／<strong>加倍</strong>（僅限前兩張、下注翻倍）→ 你停牌後莊家翻開暗牌補到 17 點為止。</p>
+                <h4>🏁 勝負與賠率</h4>
+                <p>你爆牌（超過 21）→ 輸；莊家爆牌而你沒爆 → 贏；誰點數大誰贏；平點 → 退回（和局）。賠率：普通贏 1:1，黑傑克贏 <strong>3:2</strong>（下 100 贏 150）。</p>
+                <h4>📋 本版規則</h4>
+                <p>使用 <strong>6 副牌</strong> 的牌鞋；莊家 <strong>17 點以上停牌</strong>（含軟 17）；<strong>不設保險與分牌</strong>，規則簡單適合新手與聚會。牌剩不到 1 副會自動重新洗牌。</p>
+                <h4>🎲 公平性</h4>
+                <p>洗牌使用瀏覽器 <strong>Crypto RNG</strong>；每局結束牌繼續保留在牌鞋中，中途隨機重洗，無人可以控制或預測結果。</p>
+              </div>
+            </div>
+          </details>
+
+          <div class="solo-mode-row card-mode-row" id="bjPlayMode" role="group" aria-label="遊玩模式">
+            <button type="button" class="solo-mode-option is-selected" data-playmode="solo" data-card-game="bj"><strong>♠ 單機人機</strong><small>一台手機 · 免網路</small></button>
+            <button type="button" class="solo-mode-option" data-playmode="online" data-card-game="bj"><strong>📱 多人連線</strong><small>每人一機 · 掃 QR 加入</small></button>
+          </div>
+
+          <div class="card-room wolf-panel panel-surface" id="bjRoom" hidden>
+            <div class="sync-heading">
+              <div class="sync-icon card-room-icon" aria-hidden="true">♠</div>
+              <div class="sync-heading-copy">
+                <p class="tool-card-kicker">MULTI-DEVICE BLACKJACK</p>
+                <h4>多人 21 點房間</h4>
+              </div>
+              <span class="sync-badge" id="bjRoomBadge">本機</span>
+            </div>
+            <div class="card-room-idle" id="bjRoomIdle">
+              <p class="sync-copy">這台手機是<b>莊家（主持人）</b>。其他人用手機<b>掃自己的 QR</b> 加入，每人開局 1000 籌碼；莊家手機用 Crypto RNG 發牌，按座位順序輪流要牌、停牌、加倍，不用實體牌。</p>
+              <div class="card-room-setup">
+                <label for="bjRoomPlayers">玩家人數</label>
+                <input class="mini-number" id="bjRoomPlayers" type="number" min="2" max="8" value="4" inputmode="numeric" />
+                <span class="setup-suffix">人 · 加上莊家</span>
+              </div>
+              <button class="button button-dark sync-create-button" id="createBjRoomButton" type="button">建立多人 21 點房間 <span>↗</span></button>
+            </div>
+            <div class="sync-status wolf-status" id="bjRoomStatus" aria-live="polite" hidden></div>
+            <div class="qr-grid" id="bjQrGrid" hidden></div>
+            <div class="card-room-stage" id="bjRoomStage" aria-live="polite"></div>
+            <button class="text-button" id="endBjRoomButton" type="button" hidden>結束房間 <span>↺</span></button>
+          </div>
+
+          <div class="casino-layout" id="bjSolo">
+            <div class="casino-table panel-surface">
+              <div class="table-topline">
+                <span class="table-chip" id="bjDeckInfo">🂠 已洗牌</span>
+                <span class="table-chip" id="bjResultPill">下注中</span>
+              </div>
+              <div class="casino-seat seat-dealer">
+                <div class="seat-head">
+                  <span class="seat-name">🤖 電腦莊家</span>
+                  <span class="seat-chips" id="bjDealerTotal">點數 —</span>
+                </div>
+                <div class="hand-cards" id="bjDealerCards" aria-label="莊家手牌"></div>
+                <div class="seat-hint" id="bjDealerHint">暗牌一張</div>
+              </div>
+              <div class="casino-seat seat-player">
+                <div class="seat-head">
+                  <span class="seat-name">🧑 你</span>
+                  <span class="seat-chips" id="bjPlayerTotal">點數 —</span>
+                </div>
+                <div class="hand-cards" id="bjPlayerCards" aria-label="你的手牌"></div>
+                <div class="seat-hint" id="bjPlayerHint"></div>
+              </div>
+              <div class="table-message" id="bjMessage" aria-live="polite">先選下注金額</div>
+              <div class="bet-row" id="bjBetRow" aria-label="下注金額">
+                <button class="bet-chip" type="button" data-bj-bet="50">50</button>
+                <button class="bet-chip" type="button" data-bj-bet="100">100</button>
+                <button class="bet-chip" type="button" data-bj-bet="250">250</button>
+                <button class="bet-chip" type="button" data-bj-bet="500">500</button>
+                <button class="bet-chip" type="button" data-bj-bet="all">全下</button>
+              </div>
+              <div class="bet-display">本局下注 <strong id="bjBetAmount">0</strong> 枚</div>
+              <div class="table-actions" id="bjActions"></div>
+              <div class="table-mini-row">
+                <button class="button button-primary" id="bjDealButton" type="button">發牌 <span>↗</span></button>
+                <button class="button button-quiet" id="bjResetButton" type="button">重置籌碼 <span>↺</span></button>
+              </div>
+            </div>
+            <aside class="casino-side panel-surface">
+              <h3>勝負紀錄</h3>
+              <div class="round-log bj-history" id="bjHistory" aria-live="polite"><span class="log-empty">還沒有紀錄</span></div>
+              <h3>戰績</h3>
+              <div class="game-stats" id="bjStats"></div>
+            </aside>
+          </div>
+        </section>
+
+        <section class="app-view" id="view-bac" role="region" aria-label="百家樂" hidden>
+          <div class="game-page-head">
+            <button class="back-button" data-back="cat-cards" type="button">← 卡牌遊戲</button>
+            <span class="game-page-meta">🃏 單機 · 加密隨機發牌</span>
+          </div>
+          <div class="section-heading">
+            <div>
+              <p class="section-kicker">BACCARAT</p>
+              <h2>百家樂</h2>
+              <p>押「閒」「莊」或「和」猜誰接近 9：可 2–8 人掃 QR 各自押注，也可單機。和局 8:1。</p>
+            </div>
+            <div class="round-counter">
+              <span class="counter-label">我的籌碼</span>
+              <strong id="bacBankroll">1000</strong>
+              <span class="counter-suffix">枚</span>
+            </div>
+          </div>
+
+          <details class="game-rules manual-rules" open>
+            <summary>📖 百家樂玩法說明書（人機版）</summary>
+            <div class="manual-body">
+              <div class="manual-col">
+                <h4>🎯 目標</h4>
+                <p>在開牌前押 <strong>閒家</strong>、<strong>莊家</strong> 或 <strong>和</strong>，押中誰的點數接近 9 就贏。你不需要拿牌，只負責猜。</p>
+                <h4>🃏 點數算法</h4>
+                <p>A = 1 點，2–9 = 面值，10 / J / Q / K = 0 點。兩張牌相加後<strong>只取個位數</strong>：例如 8 + 7 = 15 → 5 點。最接近 9 的一方贏。</p>
+                <h4>📋 補牌規則（自動執行）</h4>
+                <p>① 兩邊先各發兩張；<br>② 任何一邊 <strong>8 或 9</strong>（天生）→ 不補牌；<br>③ 閒家 0–5 點 → 補第三張；6–7 點 → 停牌；<br>④ 莊家依閒家是否補牌、補到什麼點數，按賭場標準補牌表自動決定是否補第三張。你只需看結果。</p>
+                <h4>💰 賠率</h4>
+                <p>押<strong>閒</strong>贏 → 1:1；押<strong>莊</strong>贏 → 1:0.95（5% 抽水自動扣除）；押<strong>和</strong>中 → <strong>8:1</strong>，此局閒莊下注退回。</p>
+                <h4>📱 多人連線</h4>
+                <p>莊家手機建立房間（負責發牌與開牌），其他牌手掃 QR 加入後，在自己的手機押閒／莊／和並鎖定；莊家開牌後各自結算，牌桌右側路單同步給所有人看。也可以玩單機人機版。</p>
+                <h4>🏁 勝負與統計</h4>
+                <p>開牌後自動結算，右側「路單」記錄最近 12 局（閒 / 莊 / 和），可以看連莊趨勢。籌碼不足時按「重置籌碼」回到 1000 枚。</p>
+                <h4>🎲 公平性</h4>
+                <p>使用 <strong>8 副牌</strong> 的牌鞋，每局從牌鞋依序發牌、牌不夠 20 張自動重洗；洗牌採用瀏覽器 <strong>Crypto RNG</strong>，獨立不可預測。</p>
+              </div>
+            </div>
+          </details>
+
+          <div class="solo-mode-row card-mode-row" id="bacPlayMode" role="group" aria-label="遊玩模式">
+            <button type="button" class="solo-mode-option is-selected" data-playmode="solo" data-card-game="bac"><strong>🃏 單機人機</strong><small>一台手機 · 免網路</small></button>
+            <button type="button" class="solo-mode-option" data-playmode="online" data-card-game="bac"><strong>📱 多人連線</strong><small>每人一機 · 掃 QR 加入</small></button>
+          </div>
+
+          <div class="card-room wolf-panel panel-surface" id="bacRoom" hidden>
+            <div class="sync-heading">
+              <div class="sync-icon card-room-icon" aria-hidden="true">🃏</div>
+              <div class="sync-heading-copy">
+                <p class="tool-card-kicker">MULTI-DEVICE BACCARAT</p>
+                <h4>多人百家樂房間</h4>
+              </div>
+              <span class="sync-badge" id="bacRoomBadge">本機</span>
+            </div>
+            <div class="card-room-idle" id="bacRoomIdle">
+              <p class="sync-copy">這台手機是<b>莊家（主持人）</b>，負責用 Crypto RNG 發牌與開牌。其他人用手機<b>掃自己的 QR</b> 加入，看桌面即時開牌，然後在自己的手機押閒、莊或和，每局各自結算。</p>
+              <div class="card-room-setup">
+                <label for="bacRoomPlayers">玩家人數</label>
+                <input class="mini-number" id="bacRoomPlayers" type="number" min="2" max="8" value="4" inputmode="numeric" />
+                <span class="setup-suffix">人 · 2–8 人</span>
+              </div>
+              <button class="button button-dark sync-create-button" id="createBacRoomButton" type="button">建立多人百家樂房間 <span>↗</span></button>
+            </div>
+            <div class="sync-status wolf-status" id="bacRoomStatus" aria-live="polite" hidden></div>
+            <div class="qr-grid" id="bacQrGrid" hidden></div>
+            <div class="card-room-stage" id="bacRoomStage" aria-live="polite"></div>
+            <button class="text-button" id="endBacRoomButton" type="button" hidden>結束房間 <span>↺</span></button>
+          </div>
+
+          <div class="casino-layout" id="bacSolo">
+            <div class="casino-table panel-surface">
+              <div class="table-topline">
+                <span class="table-chip" id="bacDeckInfo">🂠 已洗牌</span>
+                <span class="table-chip" id="bacResultPill">下注中</span>
+              </div>
+              <div class="baccarat-row">
+                <div class="casino-seat seat-baccarat">
+                  <div class="seat-head">
+                    <span class="seat-name bac-name-player">👤 閒家 PLAYER</span>
+                    <span class="seat-chips" id="bacPlayerTotal">點數 —</span>
+                  </div>
+                  <div class="hand-cards" id="bacPlayerCards" aria-label="閒家手牌"></div>
+                </div>
+                <div class="baccarat-vs" aria-hidden="true">VS</div>
+                <div class="casino-seat seat-baccarat">
+                  <div class="seat-head">
+                    <span class="seat-name bac-name-banker">🏦 莊家 BANKER</span>
+                    <span class="seat-chips" id="bacBankerTotal">點數 —</span>
+                  </div>
+                  <div class="hand-cards" id="bacBankerCards" aria-label="莊家手牌"></div>
+                </div>
+              </div>
+              <div class="bac-third-note" id="bacThirdNote" aria-live="polite"></div>
+              <div class="table-message" id="bacMessage" aria-live="polite">先選要押哪邊</div>
+              <div class="bac-side-row" role="group" aria-label="押注對象">
+                <button class="bac-side is-selected" type="button" data-bac-side="player">閒 <span>1:1</span></button>
+                <button class="bac-side" type="button" data-bac-side="banker">莊 <span>1:0.95</span></button>
+                <button class="bac-side" type="button" data-bac-side="tie">和 <span>8:1</span></button>
+              </div>
+              <div class="bet-row" aria-label="下注金額">
+                <button class="bet-chip" type="button" data-bac-bet="50">50</button>
+                <button class="bet-chip" type="button" data-bac-bet="100">100</button>
+                <button class="bet-chip" type="button" data-bac-bet="250">250</button>
+                <button class="bet-chip" type="button" data-bac-bet="500">500</button>
+                <button class="bet-chip" type="button" data-bac-bet="all">全下</button>
+              </div>
+              <div class="bet-display">本局押 <strong id="bacBetAmount">0</strong> 枚</div>
+              <div class="table-mini-row">
+                <button class="button button-primary" id="bacDealButton" type="button">開牌 <span>↗</span></button>
+                <button class="button button-quiet" id="bacResetButton" type="button">重置籌碼 <span>↺</span></button>
+              </div>
+            </div>
+            <aside class="casino-side panel-surface">
+              <h3>路單 · 最近 12 局</h3>
+              <div class="bac-route" id="bacHistory" aria-live="polite"><span class="log-empty">還沒有紀錄</span></div>
+              <h3>戰績</h3>
+              <div class="game-stats" id="bacStats"></div>
+            </aside>
           </div>
         </section>
       </main>

@@ -1,7 +1,7 @@
 {
   "name": "出門玩｜Pocket Play",
   "short_name": "出門玩",
-  "description": "離線也能使用的骰子、幸運輪與聚會小工具。",
+  "description": "離線也能玩：骰子、撲克（德州撲克／21點／百家樂，可掃 QR 多人連線）、狼人殺與聚會小工具，每款都附玩法說明。",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

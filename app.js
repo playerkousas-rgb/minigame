@@ -70,6 +70,11 @@
       preset: 60,
       remaining: 60,
     },
+    cards: {
+      texas: { bankroll: 1000, dealerBankroll: 1000, rounds: 0, wins: 0 },
+      bj: { bankroll: 1000, rounds: 0, wins: 0 },
+      bac: { bankroll: 1000, rounds: 0, wins: 0 },
+    },
   });
 
   const validString = (value, fallback) => (typeof value === 'string' ? value : fallback);
@@ -139,6 +144,24 @@
           preset: [30, 60, 180].includes(Number(saved.timer?.preset)) ? Number(saved.timer.preset) : initial.timer.preset,
           remaining: clamp(Number.isFinite(Number(saved.timer?.remaining)) ? Math.floor(Number(saved.timer.remaining)) : (Number(saved.timer?.preset) || initial.timer.remaining), 0, 3600),
         },
+        cards: {
+          texas: {
+            bankroll: clamp(Math.floor(Number(saved.cards?.texas?.bankroll) || initial.cards.texas.bankroll), 0, 999999),
+            dealerBankroll: clamp(Math.floor(Number(saved.cards?.texas?.dealerBankroll) || initial.cards.texas.dealerBankroll), 0, 999999),
+            rounds: Math.max(0, Math.floor(Number(saved.cards?.texas?.rounds) || 0)),
+            wins: Math.max(0, Math.floor(Number(saved.cards?.texas?.wins) || 0)),
+          },
+          bj: {
+            bankroll: clamp(Math.floor(Number(saved.cards?.bj?.bankroll) || initial.cards.bj.bankroll), 0, 999999),
+            rounds: Math.max(0, Math.floor(Number(saved.cards?.bj?.rounds) || 0)),
+            wins: Math.max(0, Math.floor(Number(saved.cards?.bj?.wins) || 0)),
+          },
+          bac: {
+            bankroll: clamp(Math.floor(Number(saved.cards?.bac?.bankroll) || initial.cards.bac.bankroll), 0, 999999),
+            rounds: Math.max(0, Math.floor(Number(saved.cards?.bac?.rounds) || 0)),
+            wins: Math.max(0, Math.floor(Number(saved.cards?.bac?.wins) || 0)),
+          },
+        },
       };
     } catch (error) {
       return initial;
@@ -177,23 +200,56 @@
     if (typeof navigator.vibrate === 'function') navigator.vibrate(pattern);
   }
 
-  // Navigation
+  // Navigation: 首頁 → 四大分類 → 單一遊戲／工具
   function switchView(viewName) {
-    $$('.mode-tab').forEach((tab) => {
-      const active = tab.dataset.view === viewName;
-      tab.classList.toggle('is-active', active);
-      tab.setAttribute('aria-selected', String(active));
-    });
+    const target = document.getElementById(`view-${viewName}`);
+    if (!target) return;
     $$('.app-view').forEach((view) => {
-      const active = view.id === `view-${viewName}`;
+      const active = view === target;
       view.classList.toggle('is-active', active);
       view.hidden = !active;
     });
     if (viewName === 'wheel') window.setTimeout(drawWheel, 30);
+    if (viewName === 'texas') window.setTimeout(renderTexas, 30);
+    if (viewName === 'bj') window.setTimeout(renderBlackjack, 30);
+    if (viewName === 'bac') window.setTimeout(renderBaccarat, 30);
+    window.scrollTo(0, 0);
   }
 
-  $$('.mode-tab').forEach((tab) => {
-    tab.addEventListener('click', () => switchView(tab.dataset.view));
+  function scrollToAnchor(anchorId) {
+    const anchor = document.getElementById(anchorId);
+    if (!anchor) return;
+    window.setTimeout(() => {
+      anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 60);
+  }
+
+  document.addEventListener('click', (event) => {
+    const goHome = event.target.closest('[data-go-home]');
+    const back = event.target.closest('[data-back]');
+    const category = event.target.closest('[data-category]');
+    const game = event.target.closest('[data-game]');
+
+    if (goHome) {
+      switchView('home');
+      return;
+    }
+    if (back) {
+      switchView(back.dataset.back || 'home');
+      return;
+    }
+    if (category) {
+      switchView(`cat-${category.dataset.category}`);
+      return;
+    }
+    if (game) {
+      switchView(game.dataset.game);
+      if (game.dataset.anchor) scrollToAnchor(game.dataset.anchor);
+      if (game.dataset.game === 'dice' && game.dataset.anchor === 'diceSync') {
+        showToast('在多人骰子房切到「隱藏」就是大話骰');
+      }
+      return;
+    }
   });
 
   // Connection indicator: the app is designed to work regardless of this value.
@@ -1285,8 +1341,20 @@
     const spyCode = (params.get('spy') || '').trim();
     const oneCode = (params.get('one') || '').trim();
     const agentCode = (params.get('agent') || '').trim();
+    const texasCode = (params.get('tx') || '').trim();
+    const bjCode = (params.get('bj') || '').trim();
+    const bacCode = (params.get('bac') || '').trim();
     const slot = Number(params.get('p'));
-    if (wolfCode && Number.isFinite(slot) && slot >= 1) {
+    if (texasCode && Number.isFinite(slot) && slot >= 1) {
+      switchView('texas');
+      joinTexasRoom(texasCode.toUpperCase(), clamp(Math.floor(slot), 1, 8));
+    } else if (bjCode && Number.isFinite(slot) && slot >= 1) {
+      switchView('bj');
+      joinBlackjackRoom(bjCode.toUpperCase(), clamp(Math.floor(slot), 1, 8));
+    } else if (bacCode && Number.isFinite(slot) && slot >= 1) {
+      switchView('bac');
+      joinBaccaratRoom(bacCode.toUpperCase(), clamp(Math.floor(slot), 1, 8));
+    } else if (wolfCode && Number.isFinite(slot) && slot >= 1) {
       switchView('wolf');
       joinWolfRoom(wolfCode.toUpperCase(), clamp(Math.floor(slot), 1, 12));
     } else if (spyCode && Number.isFinite(slot) && slot >= 1) {
@@ -7303,6 +7371,2989 @@
   });
   updateTimerDisplay();
 
+  // ===== 卡牌遊戲公用：牌、洗牌、加密隨機 =====
+  const CARD_SUITS = ['♠', '♥', '♦', '♣'];
+  const CARD_RANK_LABELS = { 1: 'A', 11: 'J', 12: 'Q', 13: 'K' };
+
+  const cardRankLabel = (rank) => CARD_RANK_LABELS[rank] || String(rank);
+  const cardIsRed = (card) => card.suit === '♥' || card.suit === '♦';
+  const cardName = (card) => `${cardRankLabel(card.rank)}${card.suit}`;
+
+  // 加密級隨機：用 Web Crypto 的 getRandomValues，無法被預測或控制。
+  function cryptoRandomInt(maxExclusive) {
+    if (maxExclusive <= 1) return 0;
+    const limit = Math.floor(0x100000000 / maxExclusive) * maxExclusive;
+    const buffer = new Uint32Array(1);
+    let value = 0;
+    do {
+      crypto.getRandomValues(buffer);
+      value = buffer[0];
+    } while (value >= limit);
+    return value % maxExclusive;
+  }
+
+  function shuffleCards(deck) {
+    for (let index = deck.length - 1; index > 0; index -= 1) {
+      const swap = cryptoRandomInt(index + 1);
+      [deck[index], deck[swap]] = [deck[swap], deck[index]];
+    }
+    return deck;
+  }
+
+  let shuffleCounter = 0;
+
+  function shuffleSeed(deck) {
+    shuffleCounter = (shuffleCounter + 1) % 0xffff;
+    let hash = 0;
+    deck.slice(0, 40).forEach((card) => {
+      hash = ((hash * 31) + card.rank * 4 + CARD_SUITS.indexOf(card.suit) + 1) >>> 0;
+    });
+    return (hash ^ shuffleCounter).toString(16).toUpperCase().padStart(4, '0').slice(-4);
+  }
+
+  function buildShoe(decks = 1) {
+    const deck = [];
+    for (let d = 0; d < decks; d += 1) {
+      CARD_SUITS.forEach((suit) => {
+        for (let rank = 1; rank <= 13; rank += 1) deck.push({ suit, rank });
+      });
+    }
+    const shuffled = shuffleCards(deck);
+    return { deck: shuffled, seed: shuffleSeed(shuffled), decks };
+  }
+
+  function createCardEl(card, options = {}) {
+    const el = document.createElement('div');
+    if (options.down) {
+      el.className = 'playing-card is-down';
+      return el;
+    }
+    el.className = 'playing-card';
+    const cornerTop = document.createElement('span');
+    cornerTop.className = 'card-corner';
+    cornerTop.innerHTML = `${cardRankLabel(card.rank)}<br>${card.suit}`;
+    const face = document.createElement('span');
+    face.className = 'card-face';
+    face.textContent = card.suit;
+    const cornerBottom = document.createElement('span');
+    cornerBottom.className = 'card-corner corner-btm';
+    cornerBottom.innerHTML = `${cardRankLabel(card.rank)}<br>${card.suit}`;
+    if (cardIsRed(card)) el.classList.add('is-red');
+    el.append(cornerTop, face, cornerBottom);
+    return el;
+  }
+
+  function renderHand(container, cards, options = {}) {
+    container.textContent = '';
+    const slots = Math.max(options.slots || cards.length, options.slots || 0);
+    for (let index = 0; index < slots; index += 1) {
+      const card = cards[index];
+      if (card) container.appendChild(createCardEl(card, options));
+      else container.appendChild(document.createElement('span')).className = 'waiting-slot';
+    }
+  }
+
+  function renderPlaceholders(container, slots) {
+    container.textContent = '';
+    for (let index = 0; index < slots; index += 1) {
+      container.appendChild(document.createElement('span')).className = 'waiting-slot';
+    }
+  }
+
+  function addActionButton(container, label, handler, className = '') {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `action-btn ${className}`.trim();
+    button.textContent = label;
+    button.addEventListener('click', handler);
+    container.appendChild(button);
+    return button;
+  }
+
+  const formatBankroll = (value) => Number(value).toLocaleString('en-US');
+
+  // ===== 德州撲克（人機單挑） =====
+  const TEXAS_SB = 5;
+  const TEXAS_BB = 10;
+  const TEXAS_STREET_LABELS = { idle: '準備發牌', preflop: '翻牌前', flop: '翻牌', turn: '轉牌', river: '河牌', showdown: '攤牌' };
+  const HAND_NAMES = ['高牌', '一對', '兩對', '三條', '順子', '同花', '葫蘆', '四條', '同花順'];
+
+  let texas = {
+    shoe: buildShoe(1),
+    street: 'idle',
+    phase: 'waiting',
+    community: [],
+    playerCards: [],
+    dealerCards: [],
+    pot: 0,
+    buttonOnPlayer: true,
+    actor: null,
+    needPlayer: false,
+    needDealer: false,
+    playerBet: 0,
+    dealerBet: 0,
+    lastBet: 0,
+    playerAllIn: false,
+    dealerAllIn: false,
+    playerFolded: false,
+    dealerFolded: false,
+    handOver: true,
+    reveal: false,
+    showBetInput: false,
+    resultMessage: '按「發牌」開始新一局',
+    log: [],
+    seedNote: '',
+  };
+
+  function evalFive(hand) {
+    const ranks = hand.map((card) => card.rank).sort((a, b) => b - a);
+    const suits = hand.map((card) => card.suit);
+    const counts = {};
+    ranks.forEach((rank) => { counts[rank] = (counts[rank] || 0) + 1; });
+    const groups = Object.keys(counts).map((rank) => [Number(rank), counts[rank]])
+      .sort((a, b) => b[1] - a[1] || b[0] - a[0]);
+    const flush = suits.every((suit) => suit === suits[0]);
+    let straightHigh = null;
+    const unique = [...new Set(ranks)];
+    if (unique.length === 5) {
+      if (unique[0] - unique[4] === 4) straightHigh = unique[0];
+      if (unique[0] === 14 && unique[1] === 5 && unique[2] === 4 && unique[3] === 3 && unique[4] === 2) straightHigh = 5;
+    }
+    if (flush && straightHigh) return [8, straightHigh];
+    if (groups[0][1] === 4) return [7, groups[0][0], groups[1][0]];
+    if (groups[0][1] === 3 && groups[1][1] === 2) return [6, groups[0][0], groups[1][0]];
+    if (flush) return [5, ...ranks];
+    if (straightHigh) return [4, straightHigh];
+    if (groups[0][1] === 3) return [3, groups[0][0], ...groups.slice(1).map((group) => group[0])];
+    if (groups[0][1] === 2 && groups[1][1] === 2) return [2, groups[0][0], groups[1][0], groups[2][0]];
+    if (groups[0][1] === 2) return [1, groups[0][0], ...groups.slice(1).map((group) => group[0])];
+    return [0, ...ranks];
+  }
+
+  function compareHands(a, b) {
+    const length = Math.max(a.length, b.length);
+    for (let index = 0; index < length; index += 1) {
+      const av = a[index] || 0;
+      const bv = b[index] || 0;
+      if (av !== bv) return av - bv;
+    }
+    return 0;
+  }
+
+  function bestFive(cards) {
+    let best = null;
+    const total = cards.length;
+    const combo = [];
+    const visit = (start, left) => {
+      if (left === 0) {
+        const value = evalFive(combo);
+        if (!best || compareHands(value, best) > 0) best = value;
+        return;
+      }
+      for (let index = start; index <= total - left; index += 1) {
+        combo.push(cards[index]);
+        visit(index + 1, left - 1);
+        combo.pop();
+      }
+    };
+    visit(0, 5);
+    return best;
+  }
+
+  function describeHand(score) {
+    if (!score) return '—';
+    if (score[0] === 8 && score[1] === 5) return '同花順（A2345）';
+    return HAND_NAMES[score[0]];
+  }
+
+  function texasDraw() {
+    if (texas.shoe.deck.length === 0) {
+      texas.shoe = buildShoe(1);
+      texas.seedNote = '牌堆耗盡，已重新洗牌';
+    }
+    return texas.shoe.deck.pop();
+  }
+
+  function texasLogLine(text, kind = '') {
+    texas.log.push({ text, kind });
+    if (texas.log.length > 28) texas.log.shift();
+  }
+
+  const texasFacingCall = () => Math.max(0, texas.lastBet - texas.playerBet);
+  const texasMinRaise = () => (texas.lastBet === 0 ? TEXAS_BB : texas.lastBet + TEXAS_BB);
+
+  function texasStartHand() {
+    const chips = state.cards.texas.bankroll;
+    const dealerChips = state.cards.texas.dealerBankroll;
+    if (chips < TEXAS_BB || dealerChips < TEXAS_BB) {
+      showToast('籌碼不足 10 枚，請先「重置籌碼」');
+      return;
+    }
+    texas.handOver = false;
+    texas.reveal = false;
+    texas.showBetInput = false;
+    texas.seedNote = '';
+    texas.community = [];
+    texas.phase = 'betting';
+    texas.street = 'preflop';
+    texas.playerFolded = false;
+    texas.dealerFolded = false;
+    texas.playerAllIn = false;
+    texas.dealerAllIn = false;
+    texas.playerBet = 0;
+    texas.dealerBet = 0;
+    texas.lastBet = TEXAS_BB;
+    texas.buttonOnPlayer = !texas.buttonOnPlayer;
+    texas.playerCards = [texasDraw(), texasDraw()];
+    texas.dealerCards = [texasDraw(), texasDraw()];
+    const buttonIsPlayer = texas.buttonOnPlayer;
+    const playerBlind = buttonIsPlayer ? TEXAS_SB : TEXAS_BB;
+    const dealerBlind = buttonIsPlayer ? TEXAS_BB : TEXAS_SB;
+    state.cards.texas.bankroll -= playerBlind;
+    state.cards.texas.dealerBankroll -= dealerBlind;
+    texas.pot = playerBlind + dealerBlind;
+    texas.playerBet = playerBlind;
+    texas.dealerBet = dealerBlind;
+    texas.needPlayer = true;
+    texas.needDealer = true;
+    texas.actor = buttonIsPlayer ? 'player' : 'dealer';
+    texas.log = [];
+    texasLogLine(`新一局：${buttonIsPlayer ? '你是莊家（小盲 5）' : '你是大盲 10'}，底池 15`, '');
+    saveState();
+    renderTexas();
+    if (texas.actor === 'dealer') window.setTimeout(texasDealerAct, 650);
+  }
+
+  function texasRefundUncalled() {
+    if (texas.playerAllIn && texas.playerBet < texas.dealerBet) {
+      const excess = texas.dealerBet - texas.playerBet;
+      state.cards.texas.dealerBankroll += excess;
+      texas.pot -= excess;
+      texas.dealerBet = texas.playerBet;
+    } else if (texas.dealerAllIn && texas.dealerBet < texas.playerBet) {
+      const excess = texas.playerBet - texas.dealerBet;
+      state.cards.texas.bankroll += excess;
+      texas.pot -= excess;
+      texas.playerBet = texas.dealerBet;
+    }
+  }
+
+  function texasAfterAction() {
+    texasRefundUncalled();
+    if (texas.needPlayer && !texas.needDealer) texas.actor = 'player';
+    else if (texas.needDealer) texas.actor = 'dealer';
+    else texas.actor = null;
+    const complete = !texas.needPlayer && !texas.needDealer && texas.playerBet === texas.dealerBet;
+    if (complete || (!texas.actor && (texas.playerAllIn || texas.dealerAllIn))) {
+      if (texas.playerAllIn || texas.dealerAllIn) texasRunout();
+      else texasNextStreet();
+      return;
+    }
+    renderTexas();
+    if (texas.actor === 'dealer') window.setTimeout(texasDealerAct, 650);
+  }
+
+  function texasNextStreet() {
+    if (texas.handOver) return;
+    if (texas.playerAllIn || texas.dealerAllIn) {
+      texasRunout();
+      return;
+    }
+    if (texas.street === 'preflop') {
+      texas.street = 'flop';
+      texas.community.push(texasDraw(), texasDraw(), texasDraw());
+      texasLogLine(`翻牌：${texas.community.map(cardName).join(' ')}`);
+    } else if (texas.street === 'flop') {
+      texas.street = 'turn';
+      texas.community.push(texasDraw());
+      texasLogLine(`轉牌：${cardName(texas.community[3])}`);
+    } else if (texas.street === 'turn') {
+      texas.street = 'river';
+      texas.community.push(texasDraw());
+      texasLogLine(`河牌：${cardName(texas.community[4])}`);
+    } else {
+      texasShowdown();
+      return;
+    }
+    texas.playerBet = 0;
+    texas.dealerBet = 0;
+    texas.lastBet = 0;
+    texas.needPlayer = !texas.playerAllIn && !texas.playerFolded;
+    texas.needDealer = !texas.dealerAllIn && !texas.dealerFolded;
+    texas.actor = texas.buttonOnPlayer ? 'dealer' : 'player';
+    renderTexas();
+    if (texas.actor === 'dealer') window.setTimeout(texasDealerAct, 650);
+  }
+
+  function texasRunout() {
+    while (texas.community.length < 5) texas.community.push(texasDraw());
+    texasShowdown();
+  }
+
+  function texasShowdown() {
+    if (texas.handOver) return;
+    texas.handOver = true;
+    texas.reveal = true;
+    texas.street = 'showdown';
+    const playerScore = bestFive([...texas.playerCards, ...texas.community]);
+    const dealerScore = bestFive([...texas.dealerCards, ...texas.community]);
+    const cmp = compareHands(playerScore, dealerScore);
+    let winner = 'push';
+    let message = `平手：都是 ${describeHand(playerScore)}`;
+    if (cmp > 0) {
+      winner = 'player';
+      message = `攤牌：你的 ${describeHand(playerScore)} 勝 ${describeHand(dealerScore)}`;
+    } else if (cmp < 0) {
+      winner = 'dealer';
+      message = `攤牌：電腦的 ${describeHand(dealerScore)} 勝 ${describeHand(playerScore)}`;
+    }
+    texasFinishHand(winner, message, `你：「${texas.playerCards.map(cardName).join(' ')}」 電腦：「${texas.dealerCards.map(cardName).join(' ')}」`);
+  }
+
+  function texasFinishHand(winner, message, detail = '') {
+    texas.handOver = true;
+    texas.street = 'showdown';
+    if (winner === 'player') {
+      state.cards.texas.bankroll += texas.pot;
+      state.cards.texas.wins += 1;
+    } else if (winner === 'dealer') {
+      state.cards.texas.dealerBankroll += texas.pot;
+    }
+    state.cards.texas.rounds += 1;
+    texas.resultMessage = message;
+    texasLogLine(message, winner === 'player' ? 'win' : winner === 'dealer' ? 'loss' : 'push');
+    if (detail) texasLogLine(detail, '');
+    saveState();
+    renderTexas();
+  }
+
+  function texasPlayerFold() {
+    if (texas.handOver || texas.actor !== 'player') return;
+    texas.playerFolded = true;
+    texas.needPlayer = false;
+    texasFinishHand('dealer', '你棄牌，電腦拿下彩池');
+  }
+
+  function texasPlayerCheck() {
+    if (texas.handOver || texas.actor !== 'player') return;
+    texas.needPlayer = false;
+    texasLogLine('你過牌');
+    texasAfterAction();
+  }
+
+  function texasPlayerCall() {
+    if (texas.handOver || texas.actor !== 'player') return;
+    const toCall = texasFacingCall();
+    if (toCall <= 0) {
+      texasPlayerCheck();
+      return;
+    }
+    const chips = state.cards.texas.bankroll;
+    const amount = Math.min(toCall, chips);
+    state.cards.texas.bankroll -= amount;
+    texas.pot += amount;
+    texas.playerBet += amount;
+    texas.needPlayer = false;
+    if (chips <= toCall) texas.playerAllIn = true;
+    texasLogLine(`你跟注 ${amount}`);
+    texasAfterAction();
+  }
+
+  function texasPlayerRaise(amount) {
+    if (texas.handOver || texas.actor !== 'player' || texas.playerAllIn) return;
+    const chips = state.cards.texas.bankroll;
+    const isBet = texas.lastBet === 0;
+    const total = clamp(Math.floor(Number(amount) || 0), texasMinRaise(), chips);
+    const paid = Math.max(0, total - texas.playerBet);
+    state.cards.texas.bankroll -= paid;
+    texas.pot += paid;
+    texas.playerBet = total;
+    texas.needPlayer = false;
+    texas.lastBet = total;
+    if (state.cards.texas.bankroll === 0) texas.playerAllIn = true;
+    texas.needDealer = !texas.dealerAllIn && !texas.dealerFolded;
+    texasLogLine(`你${isBet ? '下注' : '加注到'} ${total} 枚`);
+    texasAfterAction();
+  }
+
+  function texasDealerFold() {
+    if (texas.handOver || texas.actor !== 'dealer') return;
+    texas.dealerFolded = true;
+    texas.needDealer = false;
+    texasFinishHand('player', '電腦棄牌，你拿下彩池');
+  }
+
+  function texasDealerCheck() {
+    if (texas.handOver || texas.actor !== 'dealer') return;
+    texas.needDealer = false;
+    texasLogLine('電腦過牌');
+    texasAfterAction();
+  }
+
+  function texasDealerCall() {
+    if (texas.handOver || texas.actor !== 'dealer') return;
+    const toCall = Math.max(0, texas.lastBet - texas.dealerBet);
+    const chips = state.cards.texas.dealerBankroll;
+    const amount = Math.min(toCall, chips);
+    state.cards.texas.dealerBankroll -= amount;
+    texas.pot += amount;
+    texas.dealerBet += amount;
+    texas.needDealer = false;
+    if (chips <= toCall) texas.dealerAllIn = true;
+    texasLogLine(`電腦跟注 ${amount}`);
+    texasAfterAction();
+  }
+
+  function texasDealerRaise(total) {
+    if (texas.handOver || texas.actor !== 'dealer' || texas.dealerAllIn) return;
+    const chips = state.cards.texas.dealerBankroll;
+    const isBet = texas.lastBet === 0;
+    const safeTotal = clamp(Math.floor(Number(total) || 0), texasMinRaise(), chips);
+    const paid = Math.max(0, safeTotal - texas.dealerBet);
+    state.cards.texas.dealerBankroll -= paid;
+    texas.pot += paid;
+    texas.dealerBet = safeTotal;
+    texas.lastBet = safeTotal;
+    texas.needDealer = false;
+    if (state.cards.texas.dealerBankroll === 0) texas.dealerAllIn = true;
+    texas.needPlayer = !texas.playerAllIn && !texas.playerFolded;
+    texasLogLine(`電腦${isBet ? '下注' : '加注到'} ${safeTotal}`);
+    texasAfterAction();
+  }
+
+  function texasDealerStrength() {
+    const cards = texas.dealerCards;
+    if (texas.street === 'preflop') {
+      const sorted = [...cards].sort((a, b) => b.rank - a.rank);
+      const [a, b] = sorted;
+      if (a.rank === b.rank) return 0.82 + (a.rank / 13) * 0.1;
+      if (a.rank === 14 && b.rank >= 10) return 0.72;
+      if (a.rank >= 10 && b.rank >= 10) return 0.62;
+      if (a.rank === 14) return 0.55;
+      if (a.rank >= 10 || b.rank >= 10) return 0.46;
+      if (a.suit === b.suit && Math.abs(a.rank - b.rank) <= 2) return 0.44;
+      return 0.3;
+    }
+    const score = bestFive([...texas.dealerCards, ...texas.community]);
+    const base = [0.18, 0.42, 0.6, 0.7, 0.78, 0.84, 0.92, 0.96, 0.99][score[0]];
+    return base + cryptoRandomInt(100) / 1000 - 0.05;
+  }
+
+  function texasDealerAct() {
+    if (texas.handOver || texas.actor !== 'dealer') return;
+    const strength = texasDealerStrength();
+    const toCall = Math.max(0, texas.lastBet - texas.dealerBet);
+    const dealerChips = state.cards.texas.dealerBankroll;
+    const minRaise = texasMinRaise();
+    const canRaise = dealerChips > toCall && (toCall > 0 || dealerChips >= minRaise);
+
+    if (toCall === 0) {
+      if (strength > 0.62 && canRaise) {
+        const target = Math.max(minRaise, Math.min(Math.floor(texas.pot * 0.6), dealerChips));
+        texasDealerRaise(target);
+      } else {
+        texasDealerCheck();
+      }
+      return;
+    }
+    if (strength > 0.78 && canRaise) {
+      texasDealerRaise(Math.min(dealerChips, Math.floor(texas.lastBet * 2.5)));
+    } else if (strength > 0.42 || cryptoRandomInt(100) < 14) {
+      texasDealerCall();
+    } else {
+      texasDealerFold();
+    }
+  }
+
+  function renderTexas() {
+    const chips = state.cards.texas.bankroll;
+    const dealerChips = state.cards.texas.dealerBankroll;
+    $('#texasBankroll').textContent = formatBankroll(chips);
+    $('#texasPlayerChips').textContent = `${formatBankroll(chips)} 枚`;
+    $('#texasDealerChips').textContent = `${formatBankroll(dealerChips)} 枚`;
+    $('#texasPot').textContent = formatBankroll(texas.pot);
+    $('#texasStreet').textContent = TEXAS_STREET_LABELS[texas.street] || '準備發牌';
+    $('#texasDeckInfo').textContent = `🂠 ${texas.shoe.deck.length} 張 · 洗牌 #${texas.shoe.seed}`;
+    $('#texasDealerLabel').textContent = `🤖 電腦莊家${texas.buttonOnPlayer ? '' : ' · 莊家'}`;
+    $('#texasPlayerLabel').textContent = `🧑 你${texas.buttonOnPlayer ? ' · 莊家' : ''}`;
+    $('#texasPlayerHint').textContent = texas.handOver ? '這局結束，按「發牌」開下一局' : texas.playerAllIn ? '你已全下' : '';
+    $('#texasDealerHint').textContent = texas.reveal ? `攤牌：${texas.dealerCards.map(cardName).join(' ')}` : texas.seedNote || '暗牌 · 攤牌時公開';
+    renderHand($('#texasDealerCards'), texas.dealerCards, { slots: 2, down: !texas.reveal });
+    renderHand($('#texasPlayerCards'), texas.playerCards, { slots: 2 });
+    renderHand($('#texasCommunity'), [...texas.community, null, null, null, null, null].slice(0, 5), {});
+
+    let message = texas.resultMessage || '按「發牌」開始新一局';
+    if (!texas.handOver) {
+      const toCall = texasFacingCall();
+      if (texas.actor === 'player') message = toCall > 0 ? `輪到你：跟注 ${toCall}、加注或棄牌` : '輪到你：過牌或下注';
+      else if (texas.actor === 'dealer') message = '電腦思考中…';
+      else message = '等下一條街…';
+    } else if (chips < TEXAS_BB || dealerChips < TEXAS_BB) {
+      message = '一方籌碼不足兩倍大盲，請按「重置籌碼」再開局';
+    }
+    $('#texasMessage').textContent = message;
+
+    const actions = $('#texasActions');
+    actions.textContent = '';
+    if (!texas.handOver && texas.actor === 'player') {
+      const toCall = texasFacingCall();
+      addActionButton(actions, '棄牌', texasPlayerFold, 'is-danger');
+      addActionButton(actions, toCall > 0 ? `跟注 ${toCall}` : '過牌', toCall > 0 ? texasPlayerCall : texasPlayerCheck, 'is-primary');
+      if (!texas.playerAllIn) {
+        addActionButton(actions, texas.lastBet === 0 ? '下注' : '加注', () => {
+          texas.showBetInput = !texas.showBetInput;
+          renderTexas();
+        });
+        addActionButton(actions, '全下', () => {
+          texas.showBetInput = false;
+          texasPlayerRaise(chips);
+        });
+      }
+    }
+    if (texas.showBetInput && !texas.handOver && texas.actor === 'player' && !texas.playerAllIn) {
+      const row = document.createElement('div');
+      row.className = 'bet-input-row';
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.min = texasMinRaise();
+      input.max = chips;
+      input.value = Math.min(texasMinRaise() * 2, chips);
+      input.setAttribute('aria-label', '加注金額');
+      const apply = (amount) => {
+        texas.showBetInput = false;
+        texasPlayerRaise(amount);
+      };
+      const quick = (label, amount) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'bet-quick';
+        button.textContent = label;
+        button.addEventListener('click', () => apply(amount));
+        row.appendChild(button);
+      };
+      quick(`最小 ${texasMinRaise()}`, texasMinRaise());
+      quick('半池', Math.max(texasMinRaise(), Math.floor(texas.pot * 0.5) + (texas.lastBet || 0)));
+      quick('全下', chips);
+      const confirm = document.createElement('button');
+      confirm.type = 'button';
+      confirm.className = 'action-btn is-primary';
+      confirm.textContent = '確認';
+      confirm.addEventListener('click', () => apply(Number(input.value) || texasMinRaise()));
+      row.append(input, confirm);
+      actions.appendChild(row);
+    }
+
+    const dealButton = $('#texasDealButton');
+    dealButton.disabled = !texas.handOver || chips < TEXAS_BB || dealerChips < TEXAS_BB;
+    dealButton.innerHTML = texas.handOver ? '發牌 · 下一局 <span>↗</span>' : '發牌 <span>↗</span>';
+
+    const logEl = $('#texasLog');
+    logEl.textContent = '';
+    if (!texas.log.length) logEl.innerHTML = '<span class="log-empty">還沒有紀錄</span>';
+    texas.log.forEach((entry) => {
+      const line = document.createElement('div');
+      line.className = `log-line is-${entry.kind}`;
+      line.textContent = entry.text;
+      logEl.appendChild(line);
+    });
+
+    const rounds = state.cards.texas.rounds;
+    const wins = state.cards.texas.wins;
+    const rate = rounds > 0 ? Math.round((wins / rounds) * 100) : 0;
+    $('#texasStats').innerHTML = `
+      <div class="stat-row"><span>已玩局數</span><strong>${rounds}</strong></div>
+      <div class="stat-row"><span>你贏的局數</span><strong>${wins}</strong></div>
+      <div class="stat-row"><span>勝率</span><strong>${rate}%</strong></div>
+      <div class="stat-row"><span>盲注 / 起始</span><strong>5 / 10 · 1000</strong></div>
+    `;
+  }
+
+  function texasResetChips() {
+    state.cards.texas.bankroll = 1000;
+    state.cards.texas.dealerBankroll = 1000;
+    texas.handOver = true;
+    texas.street = 'idle';
+    texas.phase = 'waiting';
+    texas.reveal = false;
+    texas.showBetInput = false;
+    texas.pot = 0;
+    texas.log = [];
+    texas.resultMessage = '雙方籌碼已重置，按「發牌」開始';
+    saveState();
+    renderTexas();
+    showToast('雙方籌碼已重置');
+  }
+
+  $('#texasDealButton').addEventListener('click', () => {
+    if (!texas.handOver) return;
+    texasStartHand();
+  });
+  $('#texasResetButton').addEventListener('click', texasResetChips);
+
+  // ===== 21 點（人機） =====
+  let blackjack = {
+    shoe: buildShoe(6),
+    player: [],
+    dealer: [],
+    bet: 0,
+    stage: 'bet', // bet | playing | over
+    reveal: false,
+    doubled: false,
+    result: '',
+    kind: '',
+    history: [],
+  };
+
+  const bjDraw = () => {
+    if (blackjack.shoe.deck.length === 0) blackjack.shoe = buildShoe(6);
+    return blackjack.shoe.deck.pop();
+  };
+
+  function blackjackValue(hand) {
+    let total = 0;
+    let aces = 0;
+    hand.forEach((card) => {
+      total += card.rank === 1 ? 11 : Math.min(card.rank, 10);
+      if (card.rank === 1) aces += 1;
+    });
+    while (total > 21 && aces > 0) {
+      total -= 10;
+      aces -= 1;
+    }
+    return total;
+  }
+
+  function bjSetBet(amount) {
+    if (blackjack.stage === 'playing') {
+      showToast('這局進行中，先停牌再下注');
+      return;
+    }
+    if (blackjack.stage === 'over') {
+      blackjack.stage = 'bet';
+      blackjack.player = [];
+      blackjack.dealer = [];
+      blackjack.reveal = false;
+      blackjack.result = '';
+      blackjack.kind = '';
+      blackjack.doubled = false;
+    }
+    const chips = state.cards.bj.bankroll;
+    blackjack.bet = amount === 'all' ? chips : Math.min(Number(amount) || 0, chips);
+    renderBlackjack();
+  }
+
+  function bjDeal() {
+    if (blackjack.stage !== 'bet' || blackjack.bet <= 0) return;
+    const chips = state.cards.bj.bankroll;
+    if (chips < blackjack.bet) {
+      showToast('籌碼不足');
+      return;
+    }
+    if (blackjack.shoe.deck.length < 52) {
+      blackjack.shoe = buildShoe(6);
+      blackjack.history.unshift({ text: '牌不夠，已自動重洗 6 副牌', kind: '' });
+    }
+    state.cards.bj.bankroll -= blackjack.bet;
+    blackjack.player = [bjDraw(), bjDraw()];
+    blackjack.dealer = [bjDraw(), bjDraw()];
+    blackjack.stage = 'playing';
+    blackjack.reveal = false;
+    blackjack.doubled = false;
+    blackjack.result = '';
+    blackjack.kind = '';
+    saveState();
+    renderBlackjack();
+    if (blackjackValue(blackjack.player) === 21) window.setTimeout(bjStand, 500);
+  }
+
+  function bjHit() {
+    if (blackjack.stage !== 'playing') return;
+    blackjack.player.push(bjDraw());
+    if (blackjackValue(blackjack.player) > 21) bjResolve();
+    else renderBlackjack();
+  }
+
+  function bjDouble() {
+    if (blackjack.stage !== 'playing' || blackjack.player.length !== 2 || blackjack.doubled) return;
+    if (state.cards.bj.bankroll < blackjack.bet) {
+      showToast('籌碼不足，不能加倍');
+      return;
+    }
+    state.cards.bj.bankroll -= blackjack.bet;
+    blackjack.bet *= 2;
+    blackjack.doubled = true;
+    blackjack.player.push(bjDraw());
+    bjResolve();
+  }
+
+  function bjStand() {
+    if (blackjack.stage === 'over') return;
+    blackjack.reveal = true;
+    const playerBJ = blackjackValue(blackjack.player) === 21 && blackjack.player.length === 2;
+    if (!playerBJ) {
+      while (blackjackValue(blackjack.dealer) < 17) blackjack.dealer.push(bjDraw());
+    }
+    bjResolve();
+  }
+
+  function bjResolve() {
+    if (blackjack.stage === 'over') return;
+    blackjack.stage = 'over';
+    blackjack.reveal = true;
+    const player = blackjackValue(blackjack.player);
+    const dealer = blackjackValue(blackjack.dealer);
+    const playerBJ = player === 21 && blackjack.player.length === 2;
+    const dealerBJ = dealer === 21 && blackjack.dealer.length === 2;
+    let kind = 'push';
+    let text = `和局：${player} : ${dealer}，下注退回`;
+
+    if (player > 21) {
+      kind = 'loss';
+      text = `你爆牌（${player} 點），輸掉 ${formatBankroll(blackjack.bet)}`;
+    } else if (dealer > 21) {
+      state.cards.bj.bankroll += blackjack.bet * 2;
+      state.cards.bj.wins += 1;
+      kind = 'win';
+      text = `莊家爆牌（${dealer} 點），你贏 ${formatBankroll(blackjack.bet)}`;
+    } else if (playerBJ && !dealerBJ) {
+      const win = Math.floor(blackjack.bet * 2.5);
+      state.cards.bj.bankroll += win;
+      state.cards.bj.wins += 1;
+      kind = 'win';
+      text = `黑傑克！你贏 ${formatBankroll(win)}（3:2）`;
+    } else if (dealerBJ && !playerBJ) {
+      kind = 'loss';
+      text = `莊家黑傑克，你輸 ${formatBankroll(blackjack.bet)}`;
+    } else if (player > dealer) {
+      state.cards.bj.bankroll += blackjack.bet * 2;
+      state.cards.bj.wins += 1;
+      kind = 'win';
+      text = `你 ${player} : ${dealer} 勝，贏 ${formatBankroll(blackjack.bet)}`;
+    } else if (dealer > player) {
+      kind = 'loss';
+      text = `你 ${player} : ${dealer} 輸，輸掉 ${formatBankroll(blackjack.bet)}`;
+    }
+    state.cards.bj.rounds += 1;
+    blackjack.result = text;
+    blackjack.kind = kind;
+    blackjack.history.unshift({ text, kind });
+    if (blackjack.history.length > 24) blackjack.history.pop();
+    saveState();
+    renderBlackjack();
+  }
+
+  function renderBlackjack() {
+    const chips = state.cards.bj.bankroll;
+    $('#bjBankroll').textContent = formatBankroll(chips);
+    $('#bjDeckInfo').textContent = `🂠 ${blackjack.shoe.deck.length} 張 · 洗牌 #${blackjack.shoe.seed}`;
+    $('#bjBetAmount').textContent = formatBankroll(blackjack.bet);
+    $('#bjPlayerTotal').textContent = blackjack.player.length ? `點數 ${blackjackValue(blackjack.player)}` : '點數 —';
+    $('#bjDealerTotal').textContent = blackjack.dealer.length
+      ? (blackjack.reveal ? `點數 ${blackjackValue(blackjack.dealer)}` : `點數 ${blackjackValue(blackjack.dealer.slice(0, 1))} + ?`)
+      : '點數 —';
+    $('#bjPlayerHint').textContent = blackjack.doubled ? '已加倍' : (blackjack.player.length === 2 && blackjackValue(blackjack.player) === 21 ? '21 點！' : '');
+    $('#bjDealerHint').textContent = blackjack.reveal ? '莊家已翻牌' : '暗牌一張';
+    renderHand($('#bjDealerCards'), blackjack.dealer, { slots: Math.max(2, blackjack.dealer.length), down: !blackjack.reveal });
+    renderHand($('#bjPlayerCards'), blackjack.player, { slots: Math.max(2, blackjack.player.length) });
+
+    let message = blackjack.bet > 0 ? '按「發牌」開始本局' : '先選下注金額';
+    if (blackjack.stage === 'playing') message = `你 ${blackjackValue(blackjack.player)} 點：要牌、停牌，或加倍`;
+    if (blackjack.stage === 'over') message = blackjack.result;
+    $('#bjMessage').textContent = message;
+
+    const pill = $('#bjResultPill');
+    pill.textContent = blackjack.stage === 'over'
+      ? (blackjack.kind === 'win' ? '你贏了' : blackjack.kind === 'loss' ? '你輸了' : '和局')
+      : (blackjack.stage === 'playing' ? '進行中' : '下注中');
+
+    const actions = $('#bjActions');
+    actions.textContent = '';
+    if (blackjack.stage === 'playing') {
+      addActionButton(actions, '要牌', bjHit, 'is-primary');
+      addActionButton(actions, '停牌', bjStand);
+      if (blackjack.player.length === 2 && !blackjack.doubled) addActionButton(actions, '加倍 ×2', bjDouble);
+    }
+
+    $$('[data-bj-bet]').forEach((button) => {
+      const selected = button.dataset.bjBet === 'all' ? blackjack.bet === chips && chips > 0 : Number(button.dataset.bjBet) === blackjack.bet;
+      button.classList.toggle('is-selected', selected && blackjack.stage !== 'playing');
+    });
+
+    const dealButton = $('#bjDealButton');
+    dealButton.disabled = blackjack.stage !== 'bet' || blackjack.bet <= 0 || chips < blackjack.bet;
+    dealButton.innerHTML = blackjack.stage === 'over' ? '再開一局 <span>↗</span>' : '發牌 <span>↗</span>';
+
+    const historyEl = $('#bjHistory');
+    historyEl.textContent = '';
+    if (!blackjack.history.length) historyEl.innerHTML = '<span class="log-empty">還沒有紀錄</span>';
+    blackjack.history.forEach((entry) => {
+      const line = document.createElement('div');
+      line.className = `log-line is-${entry.kind}`;
+      line.textContent = entry.text;
+      historyEl.appendChild(line);
+    });
+
+    const rounds = state.cards.bj.rounds;
+    const wins = state.cards.bj.wins;
+    const rate = rounds > 0 ? Math.round((wins / rounds) * 100) : 0;
+    $('#bjStats').innerHTML = `
+      <div class="stat-row"><span>已玩局數</span><strong>${rounds}</strong></div>
+      <div class="stat-row"><span>你贏的局數</span><strong>${wins}</strong></div>
+      <div class="stat-row"><span>勝率</span><strong>${rate}%</strong></div>
+      <div class="stat-row"><span>牌鞋</span><strong>6 副 · 莊 17 停</strong></div>
+    `;
+  }
+
+  function bjResetChips() {
+    state.cards.bj.bankroll = 1000;
+    blackjack.stage = 'bet';
+    blackjack.player = [];
+    blackjack.dealer = [];
+    blackjack.bet = 0;
+    blackjack.reveal = false;
+    blackjack.result = '';
+    blackjack.kind = '';
+    blackjack.history = [];
+    saveState();
+    renderBlackjack();
+    showToast('籌碼已重置');
+  }
+
+  $$('[data-bj-bet]').forEach((button) => {
+    button.addEventListener('click', () => bjSetBet(button.dataset.bjBet));
+  });
+  $('#bjDealButton').addEventListener('click', () => {
+    if (blackjack.stage === 'over') {
+      blackjack.stage = 'bet';
+      blackjack.player = [];
+      blackjack.dealer = [];
+      blackjack.reveal = false;
+      blackjack.result = '';
+      blackjack.kind = '';
+    }
+    bjDeal();
+  });
+  $('#bjResetButton').addEventListener('click', bjResetChips);
+
+  // ===== 百家樂（人機 · 8 副牌鞋） =====
+  let baccarat = {
+    shoe: buildShoe(8),
+    player: [],
+    banker: [],
+    betSide: 'player',
+    bet: 0,
+    stage: 'bet', // bet | over
+    result: '',
+    kind: '',
+    note: '',
+    history: [],
+  };
+
+  const bacCardPoint = (rank) => (rank === 1 ? 1 : rank >= 10 ? 0 : rank);
+
+  const bacDraw = () => {
+    if (baccarat.shoe.deck.length < 20) {
+      baccarat.shoe = buildShoe(8);
+      baccarat.note = '牌剩不多，已自動重洗 8 副牌';
+    }
+    return baccarat.shoe.deck.pop();
+  };
+
+  const bacValue = (hand) => hand.reduce((sum, card) => (sum + bacCardPoint(card.rank)) % 10, 0);
+
+  function bacSetBet(amount) {
+    if (baccarat.stage === 'over') {
+      baccarat.stage = 'bet';
+      baccarat.player = [];
+      baccarat.banker = [];
+      baccarat.result = '';
+      baccarat.kind = '';
+      baccarat.note = '';
+    }
+    if (baccarat.stage !== 'bet') return;
+    const chips = state.cards.bac.bankroll;
+    baccarat.bet = amount === 'all' ? chips : Math.min(Number(amount) || 0, chips);
+    renderBaccarat();
+  }
+
+  function bacSetSide(side) {
+    if (baccarat.stage !== 'bet') {
+      showToast('先開下一局再改押注');
+      return;
+    }
+    baccarat.betSide = side;
+    renderBaccarat();
+  }
+
+  function bacPlay() {
+    if (baccarat.stage !== 'bet' || baccarat.bet <= 0) return;
+    if (state.cards.bac.bankroll < baccarat.bet) {
+      showToast('籌碼不足');
+      return;
+    }
+    state.cards.bac.bankroll -= baccarat.bet;
+    baccarat.stage = 'over';
+    baccarat.player = [bacDraw(), bacDraw()];
+    baccarat.banker = [bacDraw(), bacDraw()];
+    baccarat.result = '';
+    baccarat.kind = '';
+    baccarat.note = '';
+    let playerTotal = bacValue(baccarat.player);
+    let bankerTotal = bacValue(baccarat.banker);
+
+    if (playerTotal >= 8 || bankerTotal >= 8) {
+      baccarat.note = `天生 ${Math.max(playerTotal, bankerTotal)} 點，兩邊不補牌`;
+    } else {
+      let third = null;
+      if (playerTotal <= 5) {
+        const card = bacDraw();
+        baccarat.player.push(card);
+        third = bacCardPoint(card.rank);
+        baccarat.note = `閒家補第三張（${third} 點）`;
+      } else {
+        baccarat.note = '閒家 6/7 點，停牌';
+      }
+      const drawBanker = (() => {
+        if (third === null) return bankerTotal <= 5;
+        if (bankerTotal <= 2) return true;
+        if (bankerTotal === 3) return third !== 8;
+        if (bankerTotal === 4) return ![0, 1, 8, 9].includes(third);
+        if (bankerTotal === 5) return ![0, 1, 2, 3, 8, 9].includes(third);
+        if (bankerTotal === 6) return third === 6 || third === 7;
+        return false;
+      })();
+      if (drawBanker) {
+        baccarat.banker.push(bacDraw());
+        baccarat.note += '；莊家補第三張';
+      } else {
+        baccarat.note += '；莊家不補';
+      }
+    }
+    bacResolve();
+  }
+
+  function bacResolve() {
+    const player = bacValue(baccarat.player);
+    const banker = bacValue(baccarat.banker);
+    const side = player === banker ? 'tie' : player > banker ? 'player' : 'banker';
+    let kind = 'push';
+    let text = '';
+    if (side === 'tie') {
+      let back = baccarat.bet;
+      if (baccarat.betSide === 'tie') {
+        back += baccarat.bet * 8;
+        kind = 'win';
+        state.cards.bac.wins += 1;
+      }
+      state.cards.bac.bankroll += back;
+      text = baccarat.betSide === 'tie'
+        ? `和局 ${player}:${banker}！押「和」贏 ${formatBankroll(baccarat.bet * 8)}（8:1）`
+        : `和局 ${player}:${banker}，下注退回`;
+    } else if (side === baccarat.betSide) {
+      kind = 'win';
+      state.cards.bac.wins += 1;
+      if (side === 'player') {
+        state.cards.bac.bankroll += baccarat.bet * 2;
+        text = `閒贏 ${player}:${banker}，你贏 ${formatBankroll(baccarat.bet)}`;
+      } else {
+        state.cards.bac.bankroll += baccarat.bet + Math.floor(baccarat.bet * 0.95);
+        text = `莊贏 ${player}:${banker}（5% 抽水），你贏 ${formatBankroll(Math.floor(baccarat.bet * 0.95))}`;
+      }
+    } else {
+      kind = 'loss';
+      text = `${side === 'player' ? '閒' : '莊'} 贏 ${player}:${banker}，你輸 ${formatBankroll(baccarat.bet)}`;
+    }
+    state.cards.bac.rounds += 1;
+    baccarat.result = text;
+    baccarat.kind = kind;
+    baccarat.history.push(side);
+    if (baccarat.history.length > 12) baccarat.history.shift();
+    saveState();
+    renderBaccarat();
+  }
+
+  function renderBaccarat() {
+    const chips = state.cards.bac.bankroll;
+    $('#bacBankroll').textContent = formatBankroll(chips);
+    $('#bacDeckInfo').textContent = `🂠 ${baccarat.shoe.deck.length} 張 · 洗牌 #${baccarat.shoe.seed}`;
+    $('#bacBetAmount').textContent = formatBankroll(baccarat.bet);
+    $('#bacPlayerTotal').textContent = baccarat.player.length ? `點數 ${bacValue(baccarat.player)}` : '點數 —';
+    $('#bacBankerTotal').textContent = baccarat.banker.length ? `點數 ${bacValue(baccarat.banker)}` : '點數 —';
+    $('#bacThirdNote').textContent = baccarat.note;
+    renderHand($('#bacPlayerCards'), baccarat.player, { slots: Math.max(2, baccarat.player.length) });
+    renderHand($('#bacBankerCards'), baccarat.banker, { slots: Math.max(2, baccarat.banker.length) });
+
+    $('#bacMessage').textContent = baccarat.stage === 'over'
+      ? baccarat.result
+      : (baccarat.bet > 0 ? '按「開牌」發牌' : '先選要押哪邊');
+    const pill = $('#bacResultPill');
+    pill.textContent = baccarat.stage === 'over'
+      ? (baccarat.kind === 'win' ? '你贏了' : baccarat.kind === 'loss' ? '你輸了' : '和局')
+      : '下注中';
+
+    $$('[data-bac-side]').forEach((button) => {
+      button.classList.toggle('is-selected', button.dataset.bacSide === baccarat.betSide);
+    });
+    $$('[data-bac-bet]').forEach((button) => {
+      const selected = button.dataset.bacBet === 'all' ? baccarat.bet === chips && chips > 0 : Number(button.dataset.bacBet) === baccarat.bet;
+      button.classList.toggle('is-selected', selected);
+    });
+
+    const dealButton = $('#bacDealButton');
+    dealButton.disabled = baccarat.stage !== 'bet' || baccarat.bet <= 0 || chips < baccarat.bet;
+    dealButton.innerHTML = baccarat.stage === 'over' ? '再開一局 <span>↗</span>' : '開牌 <span>↗</span>';
+
+    const routeEl = $('#bacHistory');
+    routeEl.textContent = '';
+    if (!baccarat.history.length) routeEl.innerHTML = '<span class="log-empty">還沒有紀錄</span>';
+    baccarat.history.forEach((side) => {
+      const chip = document.createElement('span');
+      chip.className = `route-chip route-${side}`;
+      chip.textContent = side === 'player' ? '閒' : side === 'banker' ? '莊' : '和';
+      routeEl.appendChild(chip);
+    });
+
+    const rounds = state.cards.bac.rounds;
+    const wins = state.cards.bac.wins;
+    const rate = rounds > 0 ? Math.round((wins / rounds) * 100) : 0;
+    $('#bacStats').innerHTML = `
+      <div class="stat-row"><span>已玩局數</span><strong>${rounds}</strong></div>
+      <div class="stat-row"><span>你押中的局數</span><strong>${wins}</strong></div>
+      <div class="stat-row"><span>命中率</span><strong>${rate}%</strong></div>
+      <div class="stat-row"><span>牌鞋</span><strong>8 副 · 標準補牌</strong></div>
+    `;
+  }
+
+  function bacResetChips() {
+    state.cards.bac.bankroll = 1000;
+    baccarat.stage = 'bet';
+    baccarat.player = [];
+    baccarat.banker = [];
+    baccarat.bet = 0;
+    baccarat.result = '';
+    baccarat.kind = '';
+    baccarat.note = '';
+    baccarat.history = [];
+    saveState();
+    renderBaccarat();
+    showToast('籌碼已重置');
+  }
+
+  $$('[data-bac-bet]').forEach((button) => {
+    button.addEventListener('click', () => bacSetBet(button.dataset.bacBet));
+  });
+  $$('[data-bac-side]').forEach((button) => {
+    button.addEventListener('click', () => bacSetSide(button.dataset.bacSide));
+  });
+  $('#bacDealButton').addEventListener('click', () => {
+    if (baccarat.stage === 'over') {
+      baccarat.stage = 'bet';
+      baccarat.player = [];
+      baccarat.banker = [];
+      baccarat.result = '';
+      baccarat.kind = '';
+      baccarat.note = '';
+    }
+    bacPlay();
+  });
+  $('#bacResetButton').addEventListener('click', bacResetChips);
+
+  // ===== 多人卡牌房間（PeerJS · QR · 莊家手機發牌） =====
+  function makeCardClientId(prefix, code, slot) {
+    return `${prefix}${code.toLowerCase()}-${slot}-${randomInt(100000)}${Date.now() % 1000}`;
+  }
+
+  function cardRoomSend(conn, message) {
+    if (conn && conn.open) {
+      try { conn.send(message); } catch (error) { /* ignore */ }
+    }
+  }
+
+  function cardRoomBroadcast(conns, message) {
+    conns.forEach((entry) => cardRoomSend(entry.conn, message));
+  }
+
+  function cardRoomSetupHostConn(conn, onMessage, onClose) {
+    conn.on('open', () => {
+      conn.on('data', (message) => { try { onMessage(conn, message); } catch (error) { /* ignore */ } });
+    });
+    conn.on('close', () => onClose(conn));
+    conn.on('error', () => onClose(conn));
+  }
+
+  function cardRoomRemoveConn(conns, conn) {
+    const removed = conns.find((entry) => entry.conn === conn);
+    const next = conns.filter((entry) => entry.conn !== conn);
+    return { conns: next, removed };
+  }
+
+  function cardRoomBuildQr(gridEl, param, code, slots, subLabel) {
+    gridEl.replaceChildren();
+    if (typeof qrcode !== 'function') {
+      gridEl.hidden = true;
+      return;
+    }
+    const base = `${window.location.origin}${window.location.pathname}`;
+    slots.forEach((slot) => {
+      const url = `${base}?${new URLSearchParams({ [param]: code, p: String(slot) }).toString()}`;
+      gridEl.appendChild(buildQrCard(slot - 1, url, subLabel));
+    });
+    gridEl.hidden = false;
+  }
+
+  function makeRoomPlayer(slot, index) {
+    return {
+      slot,
+      name: `玩家 ${slot}`,
+      chips: 1000,
+      bet: 0,
+      committed: 0,
+      folded: false,
+      allIn: false,
+      streetActed: false,
+      inHand: false,
+      joined: false,
+      online: false,
+      locked: false,
+      side: 'player',
+      cards: [],
+      doubled: false,
+      finished: false,
+      result: '',
+      lastResult: '',
+    };
+  }
+
+  // ---------- 德州撲克 · 多人 ----------
+  const TEXAS_ROOM_HOST = 'pocket-texas-';
+  const texasRoom = {
+    mode: 'local', code: '', peer: null, conns: [], conn: null, mySlot: 0, ready: false,
+    players: [], handNo: 0, street: 'idle', community: [], pot: 0, lastBet: 0,
+    actor: null, buttonSlot: null, revealed: false, seed: '', deck: [],
+    log: [], winnerText: '', handOver: true, nameDraft: '',
+  };
+  const texasOnlineWanted = initSoloToggle('texasPlayMode', (soloOn) => {
+    // soloOn = true 表示「單機人機」；false = 多人連線
+    if (!soloOn && texasRoom.mode === 'local') {
+      $('#texasRoom').hidden = false;
+      $('#texasSolo').hidden = true;
+    } else if (soloOn && texasRoom.mode === 'local') {
+      $('#texasRoom').hidden = true;
+      $('#texasSolo').hidden = false;
+    }
+    if (texasRoom.mode === 'host' || texasRoom.mode === 'client') {
+      $('#texasRoom').hidden = false;
+      $('#texasSolo').hidden = true;
+    }
+  });
+
+  function texasRoomSetMode(mode) {
+    texasRoom.mode = mode;
+    const connected = mode !== 'local';
+    $('#texasRoom').hidden = !connected;
+    $('#texasSolo').hidden = connected;
+    $('#texasRoomBadge').textContent = mode === 'host' ? '莊家' : mode === 'client' ? '已連線' : '本機';
+    $('#endTexasRoomButton').hidden = !connected;
+    if (!connected) {
+      $('#texasRoomStatus').hidden = true;
+      $('#texasQrGrid').hidden = true;
+      $('#texasRoomIdle').hidden = true;
+    } else {
+      $('#texasRoomIdle').hidden = mode !== 'host';
+    }
+    if (mode === 'host') renderTexasRoomStage();
+    if (mode === 'client') renderTexasClient();
+    if (connected) {
+      $$('#texasPlayMode .solo-mode-option').forEach((button) => {
+        button.classList.toggle('is-selected', button.dataset.playmode === 'online');
+      });
+    }
+  }
+
+  function texasRoomPlayersCount() {
+    return clamp(Math.floor(Number($('#texasRoomPlayers').value) || 4), 2, 8);
+  }
+
+  function texasRoomLogLine(text, kind = '') {
+    texasRoom.log.push({ text, kind });
+    if (texasRoom.log.length > 40) texasRoom.log.shift();
+  }
+
+  function texasRoomFacing(p) {
+    return Math.max(0, texasRoom.lastBet - p.bet);
+  }
+
+  function texasRoomActivePlayers() {
+    return texasRoom.players.filter((p) => p.inHand && !p.folded && !p.allIn);
+  }
+
+  function texasRoomJoinedNames() {
+    return texasRoom.players.filter((p) => p.joined).map((p) => p.name);
+  }
+
+  function texasRoomBroadcast() {
+    const base = {
+      type: 'state',
+      stage: texasRoom.handOver ? (texasRoom.revealed ? 'showdown' : 'idle') : 'playing',
+      handNo: texasRoom.handNo,
+      street: texasRoom.street,
+      community: texasRoom.community,
+      pot: texasRoom.pot,
+      lastBet: texasRoom.lastBet,
+      actor: texasRoom.actor,
+      buttonSlot: texasRoom.buttonSlot,
+      revealed: texasRoom.revealed,
+      seed: texasRoom.seed,
+      winnerText: texasRoom.winnerText,
+      log: texasRoom.log.slice(-14),
+      players: texasRoom.players.map((p) => ({
+        slot: p.slot, name: p.name, chips: p.chips, bet: p.bet,
+        folded: p.folded, allIn: p.allIn, joined: p.joined, online: p.online !== false,
+        inHand: p.inHand,
+      })),
+    };
+    texasRoom.conns.forEach((entry) => {
+      const me = texasRoom.players.find((p) => p.slot === entry.slot);
+      cardRoomSend(entry.conn, { ...base, myCards: me ? me.cards : [] });
+    });
+    renderTexasRoomStage();
+  }
+
+  function texasRoomHandStart() {
+    const joined = texasRoom.players.filter((p) => p.joined);
+    if (joined.length < 2) {
+      showToast('至少 2 位牌手加入才能開局');
+      return;
+    }
+    texasRoom.handNo += 1;
+    texasRoom.handOver = false;
+    texasRoom.revealed = false;
+    texasRoom.winnerText = '';
+    texasRoom.community = [];
+    texasRoom.street = 'preflop';
+    texasRoom.seed = '';
+    texasRoom.deck = buildShoe(1).deck;
+    texasRoom.seed = shuffleSeed(texasRoom.deck.slice());
+    texasRoom.players.forEach((p) => {
+      p.cards = [];
+      p.bet = 0;
+      p.committed = 0;
+      p.folded = false;
+      p.allIn = false;
+      p.streetActed = false;
+      p.inHand = p.joined;
+    });
+    const order = joined.map((p) => p.slot);
+    let buttonIndex = order.indexOf(texasRoom.buttonSlot);
+    buttonIndex = (buttonIndex + 1) % order.length;
+    texasRoom.buttonSlot = order[buttonIndex];
+    const sbSlot = order[(buttonIndex + 1) % order.length];
+    const bbSlot = order[(buttonIndex + 2) % order.length];
+    const sb = texasRoom.players.find((p) => p.slot === sbSlot);
+    const bb = texasRoom.players.find((p) => p.slot === bbSlot);
+    texasRoom.players.forEach((p) => {
+      if (!p.inHand) return;
+      p.cards = [texasRoom.deck.pop(), texasRoom.deck.pop()];
+    });
+    const sbPaid = Math.min(TEXAS_SB, sb.chips);
+    sb.chips -= sbPaid;
+    sb.bet += sbPaid;
+    sb.committed += sbPaid;
+    if (sb.chips <= 0) sb.allIn = true;
+    const bbPaid = Math.min(TEXAS_BB, bb.chips);
+    bb.chips -= bbPaid;
+    bb.bet += bbPaid;
+    bb.committed += bbPaid;
+    if (bb.chips <= 0) bb.allIn = true;
+    texasRoom.lastBet = TEXAS_BB;
+    texasRoom.pot = sbPaid + bbPaid;
+    texasRoom.log = [];
+    texasRoomLogLine(`第 ${texasRoom.handNo} 局開始 · ${sb.name} 小盲 5 · ${bb.name} 大盲 10`, '');
+    const active = texasRoom.players.filter((p) => p.inHand && !p.folded && !p.allIn).map((p) => p.slot);
+    if (!active.length) {
+      texasRoom.handOver = true;
+      texasRoom.winnerText = '本局無效：沒有人可行動';
+      texasRoomBroadcast();
+      return;
+    }
+    const utgIndex = active.indexOf(bbSlot);
+    texasRoom.actor = active[(utgIndex + 1) % active.length];
+    texasRoomBroadcast();
+  }
+
+  function texasRoomNextStreet() {
+    if (texasRoom.handOver) return;
+    if (texasRoomMaybeEndByFold()) return;
+    const alive = texasRoom.players.filter((p) => p.inHand && !p.folded);
+    if (alive.length <= 1) {
+      if (alive.length === 1) {
+        const winner = alive[0];
+        winner.chips += texasRoom.pot;
+        texasRoom.handOver = true;
+        texasRoom.revealed = false;
+        texasRoom.winnerText = `${winner.name} 全場棄牌，贏得 ${formatBankroll(texasRoom.pot)}`;
+        texasRoomLogLine(texasRoom.winnerText, 'win');
+        texasRoom.pot = 0;
+        texasRoomBroadcast();
+      }
+      return;
+    }
+    if (texasRoom.street === 'preflop') {
+      texasRoom.street = 'flop';
+      texasRoom.community.push(texasRoom.deck.pop(), texasRoom.deck.pop(), texasRoom.deck.pop());
+      texasRoomLogLine(`翻牌：${texasRoom.community.map(cardName).join(' ')}`);
+    } else if (texasRoom.street === 'flop') {
+      texasRoom.street = 'turn';
+      texasRoom.community.push(texasRoom.deck.pop());
+      texasRoomLogLine(`轉牌：${cardName(texasRoom.community[3])}`);
+    } else if (texasRoom.street === 'turn') {
+      texasRoom.street = 'river';
+      texasRoom.community.push(texasRoom.deck.pop());
+      texasRoomLogLine(`河牌：${cardName(texasRoom.community[4])}`);
+    } else {
+      texasRoomSettle();
+      return;
+    }
+    texasRoom.players.forEach((p) => {
+      p.bet = 0;
+      p.streetActed = false;
+    });
+    texasRoom.lastBet = 0;
+    const active = texasRoom.players.filter((p) => p.inHand && !p.folded && !p.allIn).map((p) => p.slot);
+    if (!active.length) {
+      texasRoomRunout();
+      return;
+    }
+    const idx = active.indexOf(texasRoom.buttonSlot);
+    texasRoom.actor = active[(idx + 1) % active.length];
+    texasRoomBroadcast();
+  }
+
+  function texasRoomMaybeEndByFold() {
+    const alive = texasRoom.players.filter((p) => p.inHand && !p.folded);
+    if (alive.length > 1) return false;
+    if (alive.length === 1) {
+      const winner = alive[0];
+      winner.chips += texasRoom.pot;
+      texasRoom.handOver = true;
+      texasRoom.revealed = false;
+      texasRoom.winnerText = `${winner.name} 全場棄牌，贏得 ${formatBankroll(texasRoom.pot)}`;
+      texasRoomLogLine(texasRoom.winnerText, 'win');
+      texasRoom.pot = 0;
+      texasRoomBroadcast();
+      return true;
+    }
+    texasRoom.handOver = true;
+    texasRoom.revealed = false;
+    texasRoom.winnerText = '本局無效：全場棄牌';
+    texasRoom.pot = 0;
+    texasRoomBroadcast();
+    return true;
+  }
+
+  function texasRoomRunout() {
+    // 所有人已全下：直接把剩餘公共牌開完再結算（支援邊池）。
+    while (texasRoom.community.length < 5) texasRoom.community.push(texasRoom.deck.pop());
+    texasRoomSettle();
+  }
+
+  function texasRoomAdvance() {
+    if (texasRoomMaybeEndByFold()) return;
+    const order = texasRoom.players.filter((p) => p.inHand).map((p) => p.slot);
+    if (!order.length) return;
+    let idx = order.indexOf(texasRoom.actor);
+    for (let step = 0; step < order.length; step += 1) {
+      idx = (idx + 1) % order.length;
+      const p = texasRoom.players.find((x) => x.slot === order[idx]);
+      if (p && p.inHand && !p.folded && !p.allIn && (!p.streetActed || p.bet < texasRoom.lastBet)) {
+        texasRoom.actor = p.slot;
+        texasRoomBroadcast();
+        return;
+      }
+    }
+    const anyAllIn = texasRoom.players.some((p) => p.inHand && !p.folded && p.allIn);
+    if (anyAllIn && texasRoom.community.length < 5) {
+      texasRoomRunout();
+      return;
+    }
+    texasRoomNextStreet();
+  }
+
+  function texasRoomApplyAct(slot, action, amount) {
+    if (texasRoom.handOver || texasRoom.actor !== slot) return;
+    const p = texasRoom.players.find((x) => x.slot === slot);
+    if (!p || !p.inHand || p.folded || p.allIn) return;
+    const toCall = texasRoomFacing(p);
+    if (action === 'fold') {
+      p.folded = true;
+      p.streetActed = true;
+      texasRoomLogLine(`${p.name} 棄牌`, '');
+    } else if (action === 'check') {
+      if (toCall > 0) return;
+      p.streetActed = true;
+      texasRoomLogLine(`${p.name} 過牌`, '');
+    } else if (action === 'call') {
+      if (toCall <= 0) {
+        p.streetActed = true;
+        texasRoomLogLine(`${p.name} 過牌`, '');
+      } else {
+        const paid = Math.min(toCall, p.chips);
+        p.chips -= paid;
+        p.bet += paid;
+        p.committed += paid;
+        texasRoom.pot += paid;
+        p.streetActed = true;
+        if (p.chips <= 0) p.allIn = true;
+        texasRoomLogLine(`${p.name} 跟注 ${paid}${p.allIn ? '（全下）' : ''}`, '');
+      }
+    } else if (action === 'allin') {
+      if (p.chips <= 0) return;
+      const paid = p.chips;
+      p.chips -= paid;
+      p.bet += paid;
+      p.committed += paid;
+      texasRoom.pot += paid;
+      p.allIn = true;
+      p.streetActed = true;
+      texasRoom.lastBet = Math.max(texasRoom.lastBet, p.bet);
+      texasRoomLogLine(`${p.name} 全下 ${p.bet}`, '');
+    } else if (action === 'raise') {
+      const chips = p.chips;
+      const minRaise = texasRoom.lastBet === 0 ? TEXAS_BB : texasRoom.lastBet + TEXAS_BB;
+      let total = clamp(Math.floor(Number(amount) || 0), minRaise, p.bet + chips);
+      if (total > p.bet + chips) total = p.bet + chips;
+      const paid = total - p.bet;
+      p.chips -= paid;
+      p.bet = total;
+      p.committed += paid;
+      texasRoom.pot += paid;
+      p.streetActed = true;
+      texasRoom.lastBet = total;
+      if (p.chips <= 0) p.allIn = true;
+      texasRoomLogLine(`${p.name} ${texasRoom.lastBet === p.bet && texasRoom.lastBet > TEXAS_BB ? '加注到' : '下注'} ${total}${p.allIn ? '（全下）' : ''}`, '');
+    }
+    texasRoomAdvance();
+  }
+
+  function texasRoomSettle() {
+    const alive = texasRoom.players.filter((p) => p.inHand && !p.folded);
+    const inHand = texasRoom.players.filter((p) => p.inHand);
+    const levels = [...new Set(inHand.map((p) => p.committed).filter((bet) => bet > 0))].sort((a, b) => a - b);
+    let prev = 0;
+    const potTotal = texasRoom.pot;
+    let paid = 0;
+    const payouts = {};
+    levels.forEach((level) => {
+      const slice = (level - prev) * inHand.filter((p) => p.committed >= level).length;
+      paid += slice;
+      const eligible = alive.filter((p) => p.committed >= level);
+      let winners = [];
+      let best = null;
+      eligible.forEach((p) => {
+        const score = bestFive([...p.cards, ...texasRoom.community]);
+        if (!best || compareHands(score, best) > 0) {
+          best = score;
+          winners = [p];
+        } else if (best && compareHands(score, best) === 0) {
+          winners.push(p);
+        }
+      });
+      const share = Math.floor(slice / winners.length);
+      let remainder = slice - share * winners.length;
+      winners.forEach((p) => {
+        payouts[p.slot] = (payouts[p.slot] || 0) + share + (remainder > 0 ? 1 : 0);
+        if (remainder > 0) remainder -= 1;
+      });
+      prev = level;
+    });
+    const total = Object.values(payouts).reduce((sum, v) => sum + v, 0);
+    if (total < potTotal && potTotal > 0) {
+      const leftover = potTotal - total;
+      const top = alive[0];
+      if (top) payouts[top.slot] = (payouts[top.slot] || 0) + leftover;
+    }
+    const names = [];
+    Object.keys(payouts).forEach((key) => {
+      const slot = Number(key);
+      const p = texasRoom.players.find((x) => x.slot === slot);
+      if (p) {
+        p.chips += payouts[slot];
+        names.push(`${p.name} +${formatBankroll(payouts[slot])}`);
+      }
+    });
+    texasRoom.handOver = true;
+    texasRoom.revealed = true;
+    texasRoom.winnerText = `攤牌 · ${names.join('、') || '平局'}`;
+    const best = texasRoom.players.reduce((winner, p) => {
+      if (!p.inHand || p.folded || !winner) return p;
+      const score = bestFive([...p.cards, ...texasRoom.community]);
+      const winnerScore = bestFive([...winner.cards, ...texasRoom.community]);
+      return compareHands(score, winnerScore) >= 0 ? p : winner;
+    }, null);
+    if (best) texasRoomLogLine(`最佳牌型 ${describeHand(bestFive([...best.cards, ...texasRoom.community]))} · ${texasRoom.winnerText}`, 'win');
+    texasRoom.pot = 0;
+    texasRoomBroadcast();
+  }
+
+  function renderTexasRoomStage() {
+    const stage = $('#texasRoomStage');
+    stage.replaceChildren();
+    const header = document.createElement('div');
+    header.className = 'room-row-head';
+    const title = document.createElement('strong');
+    title.textContent = texasRoom.handNo > 0 ? `第 ${texasRoom.handNo} 局 · ${TEXAS_STREET_LABELS[texasRoom.street] || '準備中'}` : '等待開局';
+    const info = document.createElement('span');
+    info.textContent = `底池 ${formatBankroll(texasRoom.pot)} · 洗牌 #${texasRoom.seed || '—'}`;
+    header.append(title, info);
+    stage.appendChild(header);
+
+    const community = document.createElement('div');
+    community.className = 'room-cards';
+    const communityCards = [...texasRoom.community];
+    while (communityCards.length < 5) communityCards.push(null);
+    communityCards.forEach((card) => {
+      if (card) community.appendChild(createCardEl(card)); else { const slot = document.createElement('span'); slot.className = 'waiting-slot'; community.appendChild(slot); }
+    });
+    stage.appendChild(community);
+
+    const table = document.createElement('div');
+    table.className = 'card-room-table';
+    texasRoom.players.forEach((p) => {
+      const row = document.createElement('div');
+      row.className = 'room-row-head';
+      const name = document.createElement('strong');
+      name.textContent = `${p.joined ? p.name : `（未加入）玩家 ${p.slot}`}${p.slot === texasRoom.buttonSlot ? ' 🎩' : ''}${p.slot === texasRoom.actor ? ' ▶' : ''}`;
+      const status = document.createElement('span');
+      status.textContent = !p.joined ? '等待加入' : !p.inHand ? '未入局' : p.folded ? '已棄牌' : p.allIn ? '全下' : p.slot === texasRoom.actor ? `行動中 · 需跟注 ${texasRoomFacing(p)}` : `${formatBankroll(p.chips)} 枚 · 本局 ${p.bet}`;
+      row.append(name, status);
+      const cards = document.createElement('div');
+      cards.className = 'room-cards';
+      if (p.inHand && texasRoom.revealed) {
+        p.cards.forEach((card) => cards.appendChild(createCardEl(card)));
+      } else if (p.inHand) {
+        p.cards.forEach(() => cards.appendChild(createCardEl(null, { down: true })));
+      }
+      row.appendChild(cards);
+      table.appendChild(row);
+    });
+    stage.appendChild(table);
+
+    const note = document.createElement('p');
+    note.className = 'room-note';
+    note.textContent = texasRoom.winnerText || (texasRoom.handOver ? '按「開始下一局」發牌；所有牌手每人 1000 枚籌碼。' : '莊家手機發牌中，牌手在自己的手機上行動。');
+    stage.appendChild(note);
+
+    const logEl = document.createElement('div');
+    logEl.className = 'round-log';
+    texasRoom.log.slice(-8).forEach((entry) => {
+      const line = document.createElement('div');
+      line.className = `log-line is-${entry.kind}`;
+      line.textContent = entry.text;
+      logEl.appendChild(line);
+    });
+    stage.appendChild(logEl);
+
+    const actions = document.createElement('div');
+    actions.className = 'client-actions';
+    if (texasRoom.handOver) {
+      const start = document.createElement('button');
+      start.type = 'button';
+      start.className = 'action-btn is-primary';
+      start.textContent = '開始下一局';
+      start.addEventListener('click', texasRoomHandStart);
+      actions.appendChild(start);
+    }
+    stage.appendChild(actions);
+  }
+
+  function renderTexasClient() {
+    const stage = $('#texasRoomStage');
+    stage.replaceChildren();
+    const me = texasRoom.players.find((p) => p.slot === texasRoom.mySlot);
+    if (!texasRoom.ready || !me) {
+      const wait = document.createElement('div');
+      wait.className = 'room-waiting';
+      wait.innerHTML = '<strong>正在連線莊家…</strong><span>若一直停在這，請確認莊家手機已建立房間且網路正常。</span>';
+      stage.appendChild(wait);
+      return;
+    }
+    const head = document.createElement('div');
+    head.className = 'room-row-head';
+    const title = document.createElement('strong');
+    title.textContent = `德州撲克 · ${texasRoom.handNo > 0 ? `第 ${texasRoom.handNo} 局` : '等待開局'}`;
+    const info = document.createElement('span');
+    info.textContent = `你 ${formatBankroll(me.chips)} 枚 · 底池 ${formatBankroll(texasRoom.pot)}`;
+    head.append(title, info);
+    stage.appendChild(head);
+
+    const myCards = document.createElement('div');
+    myCards.className = 'hand-cards';
+    (me.cards || []).forEach((card) => myCards.appendChild(createCardEl(card)));
+    stage.appendChild(myCards);
+
+    const community = document.createElement('div');
+    community.className = 'community-row';
+    const communityCards = [...texasRoom.community];
+    while (communityCards.length < 5) communityCards.push(null);
+    communityCards.forEach((card) => { if (card) community.appendChild(createCardEl(card)); else { const slot = document.createElement('span'); slot.className = 'waiting-slot'; community.appendChild(slot); } });
+    stage.appendChild(community);
+
+    const myStatus = document.createElement('p');
+    myStatus.className = 'room-note';
+    if (texasRoom.revealed) myStatus.textContent = texasRoom.winnerText || '攤牌';
+    else if (!me.inHand) myStatus.textContent = '你還沒加入本局，下一局莊家會把你排進去。';
+    else if (me.folded) myStatus.textContent = '你已棄牌，看大家玩完這局。';
+    else if (me.allIn) myStatus.textContent = '你已全下，等攤牌。';
+    else if (texasRoom.actor === me.slot) myStatus.textContent = `輪到你：跟注 ${texasRoomFacing(me)} 或過牌`;
+    else myStatus.textContent = `等待 ${(texasRoom.players.find((p) => p.slot === texasRoom.actor) || {}).name || '…'} 行動`;
+    stage.appendChild(myStatus);
+
+    if (!texasRoom.handOver && texasRoom.actor === me.slot && me.inHand && !me.folded && !me.allIn) {
+      const actions = document.createElement('div');
+      actions.className = 'client-actions';
+      const toCall = texasRoomFacing(me);
+      const fold = document.createElement('button');
+      fold.type = 'button';
+      fold.className = 'action-btn is-danger';
+      fold.textContent = '棄牌';
+      fold.addEventListener('click', () => cardRoomSend(texasRoom.conn, { type: 'act', action: 'fold' }));
+      const call = document.createElement('button');
+      call.type = 'button';
+      call.className = 'action-btn is-primary';
+      call.textContent = toCall > 0 ? `跟注 ${toCall}` : '過牌';
+      call.addEventListener('click', () => cardRoomSend(texasRoom.conn, { type: 'act', action: toCall > 0 ? 'call' : 'check' }));
+      const raise = document.createElement('button');
+      raise.type = 'button';
+      raise.className = 'action-btn';
+      raise.textContent = texasRoom.lastBet === 0 ? '下注' : '加注';
+      raise.addEventListener('click', () => {
+        const row = document.createElement('div');
+        row.className = 'bet-input-row';
+        const input = document.createElement('input');
+        input.type = 'number';
+        const minRaise = texasRoom.lastBet === 0 ? TEXAS_BB : texasRoom.lastBet + TEXAS_BB;
+        input.min = minRaise;
+        input.max = me.bet + me.chips;
+        input.value = Math.min(minRaise * 2, me.bet + me.chips);
+        const confirm = document.createElement('button');
+        confirm.type = 'button';
+        confirm.className = 'action-btn is-primary';
+        confirm.textContent = '確認';
+        confirm.addEventListener('click', () => cardRoomSend(texasRoom.conn, { type: 'act', action: 'raise', amount: Number(input.value) || minRaise }));
+        const allin = document.createElement('button');
+        allin.type = 'button';
+        allin.className = 'bet-quick';
+        allin.textContent = '全下';
+        allin.addEventListener('click', () => cardRoomSend(texasRoom.conn, { type: 'act', action: 'allin' }));
+        row.append(input, confirm, allin);
+        stage.replaceChild(row, actions);
+      });
+      const allin = document.createElement('button');
+      allin.type = 'button';
+      allin.className = 'action-btn';
+      allin.textContent = '全下';
+      allin.addEventListener('click', () => cardRoomSend(texasRoom.conn, { type: 'act', action: 'allin' }));
+      actions.append(fold, call, raise, allin);
+      stage.appendChild(actions);
+    }
+  }
+
+  function handleTexasRoomHostMessage(conn, message) {
+    if (!message || typeof message !== 'object') return;
+    const p = texasRoom.players.find((x) => x.slot === conn.slot);
+    if (message.type === 'hello') {
+      const slot = clamp(Math.floor(Number(message.slot) || 0), 1, texasRoom.players.length);
+      conn.slot = slot;
+      const player = texasRoom.players.find((x) => x.slot === slot);
+      const name = validString(message.name, '').trim().slice(0, 14);
+      if (player) {
+        player.joined = true;
+        player.online = true;
+        if (name) player.name = name;
+      }
+      if (!texasRoom.conns.some((entry) => entry.conn === conn)) texasRoom.conns.push({ conn, slot });
+      const joined = texasRoom.players.filter((x) => x.joined).length;
+      $('#texasRoomStatus').textContent = `房間代號 ${texasRoom.code} · 已加入 ${joined}/${texasRoom.players.length} 人`;
+      $('#texasRoomStatus').hidden = false;
+      texasRoomBroadcast();
+    } else if (message.type === 'name' && p) {
+      const name = validString(message.name, '').trim().slice(0, 14) || `玩家 ${p.slot}`;
+      p.name = name;
+      texasRoomBroadcast();
+    } else if (message.type === 'act') {
+      texasRoomApplyAct(conn.slot, message.action, Number(message.amount));
+    }
+  }
+
+  function createTexasRoom() {
+    if (typeof Peer === 'undefined') {
+      showToast('連線程式未載入，請確認網路後重整');
+      return;
+    }
+    const count = texasRoomPlayersCount();
+    const code = makeRoomCode();
+    texasRoom.code = code;
+    texasRoom.mySlot = 0;
+    texasRoom.conns = [];
+    texasRoom.players = Array.from({ length: count }, (_, index) => makeRoomPlayer(index + 1, index));
+    texasRoom.handNo = 0;
+    texasRoom.handOver = true;
+    texasRoom.revealed = false;
+    texasRoom.street = 'idle';
+    texasRoom.pot = 0;
+    texasRoom.log = [];
+    texasRoom.winnerText = '';
+    texasRoomSetMode('host');
+    $('#texasRoomStatus').textContent = '建立中…';
+    $('#texasRoomStatus').hidden = false;
+    $('#texasQrGrid').hidden = true;
+    const peer = new Peer(`${TEXAS_ROOM_HOST}${code.toLowerCase()}`, { debug: 1 });
+    texasRoom.peer = peer;
+    peer.on('open', () => {
+      texasRoom.ready = true;
+      $('#texasRoomStatus').textContent = `房間代號 ${code} · 等大家掃 QR 加入`;
+      $('#texasRoomStatus').hidden = false;
+      cardRoomBuildQr($('#texasQrGrid'), 'tx', code, texasRoom.players.map((p) => p.slot), '掃描後設定名字，等待開局');
+      renderTexasRoomStage();
+    });
+    peer.on('connection', (conn) => cardRoomSetupHostConn(conn, handleTexasRoomHostMessage, (closed) => {
+      const result = cardRoomRemoveConn(texasRoom.conns, closed);
+      texasRoom.conns = result.conns;
+      if (result.removed) {
+        const player = texasRoom.players.find((x) => x.slot === result.removed.slot);
+        if (player) player.online = false;
+        const joined = texasRoom.players.filter((x) => x.joined).length;
+        $('#texasRoomStatus').textContent = `房間代號 ${texasRoom.code} · 已加入 ${joined}/${texasRoom.players.length} 人`;
+        texasRoomBroadcast();
+      }
+    }));
+    peer.on('error', (error) => {
+      const type = error && error.type;
+      if (type === 'unavailable-id') { showToast('房間代號衝突，請重試'); resetTexasRoom(); }
+      else showToast('連線暫時不穩，仍在嘗試');
+    });
+    peer.on('disconnected', () => { try { peer.reconnect(); } catch (err) { /* ignore */ } });
+  }
+
+  function joinTexasRoom(code, slot) {
+    if (typeof Peer === 'undefined') {
+      showToast('連線程式未載入，請確認網路後重整');
+      return;
+    }
+    texasRoom.mode = 'client';
+    texasRoom.code = code;
+    texasRoom.mySlot = slot;
+    texasRoom.ready = false;
+    texasRoom.conns = [];
+    texasRoom.players = [];
+    texasRoomSetMode('client');
+    $('#texasRoomStatus').hidden = true;
+    const peer = new Peer(makeCardClientId(TEXAS_ROOM_HOST, code, slot), { debug: 1 });
+    texasRoom.peer = peer;
+    peer.on('open', () => {
+      const conn = peer.connect(`${TEXAS_ROOM_HOST}${code.toLowerCase()}`, { reliable: true });
+      texasRoom.conn = conn;
+      conn.on('open', () => {
+        conn.send({ type: 'hello', slot, name: `玩家 ${slot}` });
+      });
+      conn.on('data', (message) => {
+        try {
+          if (message && message.type === 'state' && Array.isArray(message.players)) {
+            texasRoom.players = message.players.map((p) => ({
+              ...makeRoomPlayer(p.slot, 0),
+              name: validString(p.name, `玩家 ${p.slot}`).trim().slice(0, 14) || `玩家 ${p.slot}`,
+              chips: clamp(Math.floor(Number(p.chips) || 0), 0, 999999),
+              bet: Math.max(0, Math.floor(Number(p.bet) || 0)),
+              folded: Boolean(p.folded),
+              allIn: Boolean(p.allIn),
+              joined: Boolean(p.joined),
+              online: p.online !== false,
+              inHand: Boolean(p.inHand),
+            }));
+            texasRoom.handNo = Math.floor(Number(message.handNo) || 0);
+            texasRoom.street = message.street || 'idle';
+            texasRoom.community = Array.isArray(message.community) ? message.community : [];
+            texasRoom.pot = Math.max(0, Math.floor(Number(message.pot) || 0));
+            texasRoom.lastBet = Math.max(0, Math.floor(Number(message.lastBet) || 0));
+            texasRoom.actor = message.actor ?? null;
+            texasRoom.buttonSlot = message.buttonSlot ?? null;
+            texasRoom.revealed = Boolean(message.revealed);
+            texasRoom.seed = message.seed || '';
+            texasRoom.winnerText = message.winnerText || '';
+            texasRoom.handOver = message.stage === 'idle' || message.stage === 'showdown';
+            texasRoom.log = Array.isArray(message.log) ? message.log : [];
+            const me = texasRoom.players.find((p) => p.slot === texasRoom.mySlot);
+            if (me) me.cards = Array.isArray(message.myCards) ? message.myCards : [];
+            texasRoom.ready = true;
+            renderTexasClient();
+          }
+        } catch (error) { /* ignore */ }
+      });
+      conn.on('close', () => renderTexasClient());
+      conn.on('error', () => renderTexasClient());
+    });
+    peer.on('error', () => {
+      texasRoom.ready = false;
+      renderTexasClient();
+    });
+    peer.on('disconnected', () => { try { peer.reconnect(); } catch (err) { /* ignore */ } });
+  }
+
+  function resetTexasRoom() {
+    try { if (texasRoom.peer) texasRoom.peer.destroy(); } catch (error) { /* ignore */ }
+    texasRoom.mode = 'local';
+    texasRoom.code = '';
+    texasRoom.peer = null;
+    texasRoom.conns = [];
+    texasRoom.conn = null;
+    texasRoom.mySlot = 0;
+    texasRoom.ready = false;
+    texasRoom.players = [];
+    texasRoom.handNo = 0;
+    texasRoom.street = 'idle';
+    texasRoom.community = [];
+    texasRoom.pot = 0;
+    texasRoom.lastBet = 0;
+    texasRoom.actor = null;
+    texasRoom.buttonSlot = null;
+    texasRoom.revealed = false;
+    texasRoom.seed = '';
+    texasRoom.log = [];
+    texasRoom.winnerText = '';
+    texasRoom.handOver = true;
+    texasRoomSetMode('local');
+    $('#texasRoom').hidden = true;
+    $('#texasSolo').hidden = false;
+  }
+
+  $('#createTexasRoomButton').addEventListener('click', createTexasRoom);
+  $('#endTexasRoomButton').addEventListener('click', () => {
+    resetTexasRoom();
+    showToast('已結束德州撲克房間');
+  });
+
+  // ---------- 21 點 · 多人 ----------
+  const BJ_ROOM_HOST = 'pocket-bj-';
+  const blackjackRoom = {
+    mode: 'local', code: '', peer: null, conns: [], conn: null, mySlot: 0, ready: false,
+    players: [], stage: 'lobby', turnSlot: null, dealerCards: [], roundNo: 0,
+    shoe: buildShoe(6), log: [], resultText: '', dealt: false,
+  };
+  const bjOnlineWanted = initSoloToggle('bjPlayMode', (soloOn) => {
+    if (!soloOn && blackjackRoom.mode === 'local') {
+      $('#bjRoom').hidden = false;
+      $('#bjSolo').hidden = true;
+    } else if (soloOn && blackjackRoom.mode === 'local') {
+      $('#bjRoom').hidden = true;
+      $('#bjSolo').hidden = false;
+    }
+    if (blackjackRoom.mode === 'host' || blackjackRoom.mode === 'client') {
+      $('#bjRoom').hidden = false;
+      $('#bjSolo').hidden = true;
+    }
+  });
+
+  function blackjackRoomSetMode(mode) {
+    blackjackRoom.mode = mode;
+    const connected = mode !== 'local';
+    $('#bjRoom').hidden = !connected;
+    $('#bjSolo').hidden = connected;
+    $('#bjRoomBadge').textContent = mode === 'host' ? '莊家' : mode === 'client' ? '已連線' : '本機';
+    $('#endBjRoomButton').hidden = !connected;
+    if (!connected) {
+      $('#bjRoomStatus').hidden = true;
+      $('#bjQrGrid').hidden = true;
+      $('#bjRoomIdle').hidden = true;
+    } else {
+      $('#bjRoomIdle').hidden = mode !== 'host';
+    }
+    if (mode === 'host') renderBlackjackRoomStage();
+    if (mode === 'client') renderBlackjackClient();
+    if (connected) {
+      $$('#bjPlayMode .solo-mode-option').forEach((button) => {
+        button.classList.toggle('is-selected', button.dataset.playmode === 'online');
+      });
+    }
+  }
+
+  const bjRoomValue = (hand) => blackjackValue(hand);
+
+  function bjRoomLogLine(text, kind = '') {
+    blackjackRoom.log.push({ text, kind });
+    if (blackjackRoom.log.length > 40) blackjackRoom.log.shift();
+  }
+
+  function bjRoomBroadcast() {
+    const base = {
+      type: 'state',
+      stage: blackjackRoom.stage,
+      roundNo: blackjackRoom.roundNo,
+      turnSlot: blackjackRoom.turnSlot,
+      dealerCards: blackjackRoom.dealerCards,
+      dealt: blackjackRoom.dealt,
+      resultText: blackjackRoom.resultText,
+      log: blackjackRoom.log.slice(-10),
+      players: blackjackRoom.players.map((p) => ({
+        slot: p.slot, name: p.name, chips: p.chips, bet: p.bet, locked: p.locked,
+        joined: p.joined, online: p.online !== false, doubled: p.doubled,
+        finished: p.finished, result: p.result,
+      })),
+    };
+    blackjackRoom.conns.forEach((entry) => {
+      const me = blackjackRoom.players.find((p) => p.slot === entry.slot);
+      cardRoomSend(entry.conn, { ...base, myCards: me ? me.cards : [] });
+    });
+    renderBlackjackRoomStage();
+  }
+
+  function blackjackRoomStartBetting() {
+    blackjackRoom.stage = 'bet';
+    blackjackRoom.dealt = false;
+    blackjackRoom.dealerCards = [];
+    blackjackRoom.turnSlot = null;
+    blackjackRoom.resultText = '';
+    blackjackRoom.players.forEach((p) => {
+      p.bet = p.bet > 0 ? p.bet : 0;
+      p.locked = false;
+      p.cards = [];
+      p.doubled = false;
+      p.finished = false;
+      p.result = '';
+    });
+    bjRoomLogLine(`第 ${blackjackRoom.roundNo + 1} 局：大家下注`, '');
+    bjRoomBroadcast();
+  }
+
+  function blackjackRoomDeal() {
+    const joined = blackjackRoom.players.filter((p) => p.joined);
+    if (joined.some((p) => !p.locked)) {
+      showToast('還有牌手未鎖定下注');
+      return;
+    }
+    blackjackRoom.roundNo += 1;
+    blackjackRoom.stage = 'play';
+    blackjackRoom.dealt = true;
+    blackjackRoom.dealerCards = [];
+    blackjackRoom.turnSlot = null;
+    blackjackRoom.resultText = '';
+    if (blackjackRoom.shoe.deck.length < 52) {
+      blackjackRoom.shoe = buildShoe(6);
+      bjRoomLogLine('牌不夠，已重洗 6 副牌鞋', '');
+    }
+    blackjackRoom.players.forEach((p) => {
+      if (!p.joined) return;
+      p.cards = [blackjackRoom.shoe.deck.pop(), blackjackRoom.shoe.deck.pop()];
+      p.chips -= p.bet;
+      p.finished = bjRoomValue(p.cards) === 21;
+      p.result = '';
+    });
+    blackjackRoom.dealerCards = [blackjackRoom.shoe.deck.pop(), blackjackRoom.shoe.deck.pop()];
+    bjRoomLogLine(`第 ${blackjackRoom.roundNo} 局發牌`, '');
+    blackjackRoomAdvanceTurn();
+  }
+
+  function blackjackRoomAdvanceTurn() {
+    const order = blackjackRoom.players.filter((p) => p.joined).map((p) => p.slot);
+    const idx = order.indexOf(blackjackRoom.turnSlot);
+    for (let step = 0; step < order.length; step += 1) {
+      const slot = order[(idx + 1) % order.length];
+      const p = blackjackRoom.players.find((x) => x.slot === slot);
+      if (p && !p.finished) {
+        blackjackRoom.turnSlot = slot;
+        bjRoomBroadcast();
+        return;
+      }
+    }
+    blackjackRoomDealerPlay();
+  }
+
+  function blackjackRoomApply(slot, action) {
+    if (blackjackRoom.stage !== 'play' || blackjackRoom.turnSlot !== slot) return;
+    const p = blackjackRoom.players.find((x) => x.slot === slot);
+    if (!p || p.finished) return;
+    if (action === 'stand') {
+      p.finished = true;
+      bjRoomLogLine(`${p.name} 停牌（${bjRoomValue(p.cards)}）`, '');
+    } else if (action === 'hit') {
+      p.cards.push(blackjackRoom.shoe.deck.pop());
+      if (bjRoomValue(p.cards) > 21) {
+        p.finished = true;
+        p.result = 'bust';
+        bjRoomLogLine(`${p.name} 爆牌（${bjRoomValue(p.cards)}）`, 'loss');
+      }
+    } else if (action === 'double') {
+      if (p.cards.length !== 2 || p.doubled || p.chips < p.bet) return;
+      p.chips -= p.bet;
+      p.bet *= 2;
+      p.doubled = true;
+      p.cards.push(blackjackRoom.shoe.deck.pop());
+      p.finished = true;
+      if (bjRoomValue(p.cards) > 21) p.result = 'bust';
+      bjRoomLogLine(`${p.name} 加倍 ${p.bet}`, '');
+    }
+    blackjackRoomAdvanceTurn();
+  }
+
+  function blackjackRoomDealerPlay() {
+    blackjackRoom.stage = 'deal';
+    blackjackRoom.dealerCards = [blackjackRoom.shoe.deck.pop(), blackjackRoom.shoe.deck.pop()];
+    const playerBJ = blackjackRoom.players.some((p) => p.joined && bjRoomValue(p.cards) === 21 && p.cards.length === 2);
+    if (!playerBJ) {
+      while (bjRoomValue(blackjackRoom.dealerCards) < 17) {
+        blackjackRoom.dealerCards.push(blackjackRoom.shoe.deck.pop());
+      }
+    }
+    blackjackRoomSettle();
+  }
+
+  function blackjackRoomSettle() {
+    const dealer = bjRoomValue(blackjackRoom.dealerCards);
+    const dealerBJ = dealer === 21 && blackjackRoom.dealerCards.length === 2;
+    blackjackRoom.players.forEach((p) => {
+      if (!p.joined) return;
+      const value = bjRoomValue(p.cards);
+      const playerBJ = value === 21 && p.cards.length === 2;
+      if (value > 21 || p.result === 'bust') {
+        p.result = 'loss';
+      } else if (dealer > 21) {
+        p.chips += p.bet * 2;
+        p.result = 'win';
+      } else if (playerBJ && !dealerBJ) {
+        const win = Math.floor(p.bet * 2.5);
+        p.chips += win;
+        p.result = 'win';
+      } else if (dealerBJ && !playerBJ) {
+        p.result = 'loss';
+      } else if (value > dealer) {
+        p.chips += p.bet * 2;
+        p.result = 'win';
+      } else if (dealer > value) {
+        p.result = 'loss';
+      } else {
+        p.chips += p.bet;
+        p.result = 'push';
+      }
+      p.lastResult = p.result;
+      p.finished = true;
+    });
+    blackjackRoom.stage = 'over';
+    blackjackRoom.turnSlot = null;
+    blackjackRoom.resultText = `莊家 ${dealer} 點 · ${dealer > 21 ? '爆牌' : dealerBJ ? '黑傑克' : '結算'}`;
+    const wins = blackjackRoom.players.filter((p) => p.joined && p.result === 'win').length;
+    bjRoomLogLine(`莊家 ${dealer} 點，${wins} 人贏`, '');
+    bjRoomBroadcast();
+  }
+
+  function renderBlackjackRoomStage() {
+    const stage = $('#bjRoomStage');
+    stage.replaceChildren();
+    const header = document.createElement('div');
+    header.className = 'room-row-head';
+    const title = document.createElement('strong');
+    title.textContent = blackjackRoom.roundNo > 0
+      ? `第 ${blackjackRoom.roundNo} 局`
+      : (blackjackRoom.stage === 'bet' ? '押注中 · 準備第 1 局' : '等待開局');
+    const info = document.createElement('span');
+    info.textContent = `莊家 ${blackjackRoom.dealerCards.length ? `${bjRoomValue(blackjackRoom.dealerCards)} 點` : '未發牌'} · 牌鞋 ${blackjackRoom.shoe.deck.length} 張`;
+    header.append(title, info);
+    stage.appendChild(header);
+
+    const dealerRow = document.createElement('div');
+    dealerRow.className = 'card-room-table';
+    const dHead = document.createElement('div');
+    dHead.className = 'room-row-head';
+    const dName = document.createElement('strong');
+    dName.textContent = '🤖 莊家';
+    const dStatus = document.createElement('span');
+    dStatus.textContent = blackjackRoom.dealt ? '暗牌一張' : '等待下注';
+    dHead.append(dName, dStatus);
+    const dCards = document.createElement('div');
+    dCards.className = 'room-cards';
+    blackjackRoom.dealerCards.forEach((card, index) => {
+      dCards.appendChild(createCardEl(card, { down: index > 0 && blackjackRoom.stage !== 'over' && blackjackRoom.stage !== 'deal' }));
+    });
+    dealerRow.append(dHead, dCards);
+    stage.appendChild(dealerRow);
+
+    const table = document.createElement('div');
+    table.className = 'card-room-table';
+    blackjackRoom.players.forEach((p) => {
+      const row = document.createElement('div');
+      row.className = 'room-row-head';
+      const name = document.createElement('strong');
+      name.textContent = `${p.joined ? p.name : `（未加入）玩家 ${p.slot}`}${p.slot === blackjackRoom.turnSlot ? ' ▶' : ''}`;
+      const status = document.createElement('span');
+      status.textContent = !p.joined ? '等待加入' : blackjackRoom.stage === 'bet' ? (p.locked ? `已鎖定 ${p.bet}` : '下注中') : blackjackRoom.stage === 'over' ? (p.result === 'win' ? '🎉 贏' : p.result === 'loss' ? '輸' : p.result === 'push' ? '和局' : '—') : p.finished ? `${bjRoomValue(p.cards)} 點` : `${bjRoomValue(p.cards)} 點`;
+      row.append(name, status);
+      const cards = document.createElement('div');
+      cards.className = 'room-cards';
+      (p.cards || []).forEach((card) => cards.appendChild(createCardEl(card)));
+      row.appendChild(cards);
+      table.appendChild(row);
+    });
+    stage.appendChild(table);
+
+    const note = document.createElement('p');
+    note.className = 'room-note';
+    note.textContent = blackjackRoom.resultText || (blackjackRoom.stage === 'bet' ? '等所有牌手下注並鎖定，莊家才發牌。' : blackjackRoom.stage === 'play' ? '按座位順序輪流行動。' : '牌手每人 1000 枚籌碼，黑傑克 3:2。');
+    stage.appendChild(note);
+
+    const logEl = document.createElement('div');
+    logEl.className = 'round-log';
+    blackjackRoom.log.slice(-8).forEach((entry) => {
+      const line = document.createElement('div');
+      line.className = `log-line is-${entry.kind}`;
+      line.textContent = entry.text;
+      logEl.appendChild(line);
+    });
+    stage.appendChild(logEl);
+
+    const actions = document.createElement('div');
+    actions.className = 'client-actions';
+    if (blackjackRoom.stage === 'lobby') {
+      const start = document.createElement('button');
+      start.type = 'button';
+      start.className = 'action-btn is-primary';
+      start.textContent = '開始下注 · 第 1 局';
+      start.addEventListener('click', blackjackRoomStartBetting);
+      actions.appendChild(start);
+    } else if (blackjackRoom.stage === 'bet') {
+      const deal = document.createElement('button');
+      deal.type = 'button';
+      deal.className = 'action-btn is-primary';
+      deal.textContent = '發牌 · 開始第 ' + (blackjackRoom.roundNo + 1) + ' 局';
+      deal.addEventListener('click', blackjackRoomDeal);
+      actions.appendChild(deal);
+    } else if (blackjackRoom.stage === 'over') {
+      const next = document.createElement('button');
+      next.type = 'button';
+      next.className = 'action-btn is-primary';
+      next.textContent = '再開一局 · 重新下注';
+      next.addEventListener('click', blackjackRoomStartBetting);
+      actions.appendChild(next);
+    }
+    stage.appendChild(actions);
+  }
+
+  function renderBlackjackClient() {
+    const stage = $('#bjRoomStage');
+    stage.replaceChildren();
+    const me = blackjackRoom.players.find((p) => p.slot === blackjackRoom.mySlot);
+    if (!blackjackRoom.ready || !me) {
+      const wait = document.createElement('div');
+      wait.className = 'room-waiting';
+      wait.innerHTML = '<strong>正在連線莊家…</strong><span>若一直停在這，請確認莊家手機已建立房間且網路正常。</span>';
+      stage.appendChild(wait);
+      return;
+    }
+    const head = document.createElement('div');
+    head.className = 'room-row-head';
+    const title = document.createElement('strong');
+    title.textContent = `21 點 · 第 ${blackjackRoom.roundNo || '—'} 局`;
+    const info = document.createElement('span');
+    info.textContent = `你 ${formatBankroll(me.chips)} 枚`;
+    head.append(title, info);
+    stage.appendChild(head);
+
+    const dealerCards = document.createElement('div');
+    dealerCards.className = 'hand-cards';
+    const dealerVisible = blackjackRoom.stage === 'over' || blackjackRoom.stage === 'deal';
+    blackjackRoom.dealerCards.forEach((card, index) => {
+      dealerCards.appendChild(createCardEl(card, { down: index > 0 && !dealerVisible }));
+    });
+    const dealerNote = document.createElement('p');
+    dealerNote.className = 'room-note';
+    dealerNote.textContent = `莊家 ${dealerVisible ? bjRoomValue(blackjackRoom.dealerCards) : blackjackRoom.dealerCards[0] ? cardRankLabel(blackjackRoom.dealerCards[0].rank) + ' + ?' : '—'} 點`;
+    stage.append(dealerCards, dealerNote);
+
+    const myCards = document.createElement('div');
+    myCards.className = 'hand-cards';
+    (me.cards || []).forEach((card) => myCards.appendChild(createCardEl(card)));
+    const myNote = document.createElement('p');
+    myNote.className = 'room-note';
+    myNote.textContent = `你 ${me.cards.length ? bjRoomValue(me.cards) : '—'} 點 · 本局下注 ${me.bet} 枚`;
+    stage.append(myCards, myNote);
+
+    if (blackjackRoom.stage === 'bet') {
+      const betRow = document.createElement('div');
+      betRow.className = 'client-bet-row';
+      [100, 250, 500, 1000].forEach((amount) => {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'bet-chip';
+        chip.textContent = String(amount);
+        chip.classList.toggle('is-selected', me.bet === amount);
+        chip.addEventListener('click', () => cardRoomSend(blackjackRoom.conn, { type: 'bet', amount }));
+        betRow.appendChild(chip);
+      });
+      const all = document.createElement('button');
+      all.type = 'button';
+      all.className = 'bet-chip';
+      all.textContent = '全下';
+      all.classList.toggle('is-selected', me.bet === me.chips);
+      all.addEventListener('click', () => cardRoomSend(blackjackRoom.conn, { type: 'bet', amount: 'all' }));
+      betRow.appendChild(all);
+      const lock = document.createElement('button');
+      lock.type = 'button';
+      lock.className = 'action-btn is-primary';
+      lock.textContent = me.locked ? `已鎖定 ${me.bet} 枚 ✓（再按可改）` : `鎖定下注 ${me.bet}`;
+      lock.addEventListener('click', () => cardRoomSend(blackjackRoom.conn, { type: 'lock' }));
+      stage.append(betRow, lock);
+    } else if (blackjackRoom.stage === 'play' && blackjackRoom.turnSlot !== me.slot && !me.finished) {
+      const others = blackjackRoom.players.find((p) => p.slot === blackjackRoom.turnSlot);
+      const wait = document.createElement('p');
+      wait.className = 'room-note';
+      wait.textContent = others && others.joined ? `等 ${others.name} 行動…` : '等莊家發牌…';
+      stage.appendChild(wait);
+    } else if (blackjackRoom.stage === 'play' && blackjackRoom.turnSlot === me.slot && !me.finished) {
+      const actions = document.createElement('div');
+      actions.className = 'client-actions';
+      const hit = document.createElement('button');
+      hit.type = 'button';
+      hit.className = 'action-btn is-primary';
+      hit.textContent = '要牌';
+      hit.addEventListener('click', () => cardRoomSend(blackjackRoom.conn, { type: 'bjact', action: 'hit' }));
+      const stand = document.createElement('button');
+      stand.type = 'button';
+      stand.className = 'action-btn';
+      stand.textContent = '停牌';
+      stand.addEventListener('click', () => cardRoomSend(blackjackRoom.conn, { type: 'bjact', action: 'stand' }));
+      actions.append(hit, stand);
+      if (me.cards.length === 2 && !me.doubled && me.chips >= me.bet) {
+        const double = document.createElement('button');
+        double.type = 'button';
+        double.className = 'action-btn';
+        double.textContent = '加倍 ×2';
+        double.addEventListener('click', () => cardRoomSend(blackjackRoom.conn, { type: 'bjact', action: 'double' }));
+        actions.appendChild(double);
+      }
+      stage.appendChild(actions);
+    } else if (blackjackRoom.stage === 'over') {
+      const result = document.createElement('div');
+      result.className = `client-result ${me.result === 'win' ? '' : me.result === 'loss' ? 'is-loss' : 'is-push'}`;
+      result.textContent = me.result === 'win' ? '🎉 你贏了！' : me.result === 'loss' ? '你輸了' : '和局，下注退回';
+      stage.appendChild(result);
+    }
+  }
+
+  function handleBlackjackRoomHostMessage(conn, message) {
+    if (!message || typeof message !== 'object') return;
+    const p = blackjackRoom.players.find((x) => x.slot === conn.slot);
+    if (message.type === 'hello') {
+      const slot = clamp(Math.floor(Number(message.slot) || 0), 1, blackjackRoom.players.length);
+      conn.slot = slot;
+      const player = blackjackRoom.players.find((x) => x.slot === slot);
+      const name = validString(message.name, '').trim().slice(0, 14);
+      if (player) {
+        player.joined = true;
+        player.online = true;
+        if (name) player.name = name;
+      }
+      if (!blackjackRoom.conns.some((entry) => entry.conn === conn)) blackjackRoom.conns.push({ conn, slot });
+      const joined = blackjackRoom.players.filter((x) => x.joined).length;
+      $('#bjRoomStatus').textContent = `房間代號 ${blackjackRoom.code} · 已加入 ${joined}/${blackjackRoom.players.length} 人`;
+      $('#bjRoomStatus').hidden = false;
+      bjRoomBroadcast();
+    } else if (message.type === 'bet' && p) {
+      if (blackjackRoom.stage !== 'bet') return;
+      const chips = p.chips;
+      p.bet = message.amount === 'all' ? chips : Math.min(Math.floor(Number(message.amount) || 0), chips);
+      p.locked = false;
+      bjRoomBroadcast();
+    } else if (message.type === 'lock' && p) {
+      if (blackjackRoom.stage !== 'bet') return;
+      if (p.bet <= 0) {
+        showToast(`${p.name} 還未選下注金額`);
+        return;
+      }
+      p.locked = true;
+      bjRoomBroadcast();
+    } else if (message.type === 'bjact') {
+      blackjackRoomApply(conn.slot, message.action);
+    }
+  }
+
+  function createBlackjackRoom() {
+    if (typeof Peer === 'undefined') {
+      showToast('連線程式未載入，請確認網路後重整');
+      return;
+    }
+    const count = clamp(Math.floor(Number($('#bjRoomPlayers').value) || 4), 2, 8);
+    const code = makeRoomCode();
+    blackjackRoom.code = code;
+    blackjackRoom.mySlot = 0;
+    blackjackRoom.conns = [];
+    blackjackRoom.players = Array.from({ length: count }, (_, index) => makeRoomPlayer(index + 1, index));
+    blackjackRoom.roundNo = 0;
+    blackjackRoom.stage = 'lobby';
+    blackjackRoom.dealt = false;
+    blackjackRoom.dealerCards = [];
+    blackjackRoom.turnSlot = null;
+    blackjackRoom.resultText = '';
+    blackjackRoom.log = [];
+    blackjackRoomSetMode('host');
+    $('#bjRoomStatus').textContent = '建立中…';
+    $('#bjRoomStatus').hidden = false;
+    $('#bjQrGrid').hidden = true;
+    const peer = new Peer(`${BJ_ROOM_HOST}${code.toLowerCase()}`, { debug: 1 });
+    blackjackRoom.peer = peer;
+    peer.on('open', () => {
+      blackjackRoom.ready = true;
+      $('#bjRoomStatus').textContent = `房間代號 ${code} · 等大家掃 QR 加入`;
+      $('#bjRoomStatus').hidden = false;
+      cardRoomBuildQr($('#bjQrGrid'), 'bj', code, blackjackRoom.players.map((p) => p.slot), '掃描後設定名字，等待下注');
+      renderBlackjackRoomStage();
+    });
+    peer.on('connection', (conn) => cardRoomSetupHostConn(conn, handleBlackjackRoomHostMessage, (closed) => {
+      const result = cardRoomRemoveConn(blackjackRoom.conns, closed);
+      blackjackRoom.conns = result.conns;
+      if (result.removed) {
+        const player = blackjackRoom.players.find((x) => x.slot === result.removed.slot);
+        if (player) player.online = false;
+        const joined = blackjackRoom.players.filter((x) => x.joined).length;
+        $('#bjRoomStatus').textContent = `房間代號 ${blackjackRoom.code} · 已加入 ${joined}/${blackjackRoom.players.length} 人`;
+        bjRoomBroadcast();
+      }
+    }));
+    peer.on('error', (error) => {
+      const type = error && error.type;
+      if (type === 'unavailable-id') { showToast('房間代號衝突，請重試'); resetBlackjackRoom(); }
+      else showToast('連線暫時不穩，仍在嘗試');
+    });
+    peer.on('disconnected', () => { try { peer.reconnect(); } catch (err) { /* ignore */ } });
+  }
+
+  function joinBlackjackRoom(code, slot) {
+    if (typeof Peer === 'undefined') {
+      showToast('連線程式未載入，請確認網路後重整');
+      return;
+    }
+    blackjackRoom.mode = 'client';
+    blackjackRoom.code = code;
+    blackjackRoom.mySlot = slot;
+    blackjackRoom.ready = false;
+    blackjackRoom.conns = [];
+    blackjackRoom.players = [];
+    blackjackRoomSetMode('client');
+    $('#bjRoomStatus').hidden = true;
+    const peer = new Peer(makeCardClientId(BJ_ROOM_HOST, code, slot), { debug: 1 });
+    blackjackRoom.peer = peer;
+    peer.on('open', () => {
+      const conn = peer.connect(`${BJ_ROOM_HOST}${code.toLowerCase()}`, { reliable: true });
+      blackjackRoom.conn = conn;
+      conn.on('open', () => conn.send({ type: 'hello', slot, name: `玩家 ${slot}` }));
+      conn.on('data', (message) => {
+        try {
+          if (message && message.type === 'state' && Array.isArray(message.players)) {
+            blackjackRoom.players = message.players.map((p) => ({
+              ...makeRoomPlayer(p.slot, 0),
+              name: validString(p.name, `玩家 ${p.slot}`).trim().slice(0, 14) || `玩家 ${p.slot}`,
+              chips: clamp(Math.floor(Number(p.chips) || 0), 0, 999999),
+              bet: Math.max(0, Math.floor(Number(p.bet) || 0)),
+              locked: Boolean(p.locked),
+              joined: Boolean(p.joined),
+              online: p.online !== false,
+              doubled: Boolean(p.doubled),
+              finished: Boolean(p.finished),
+              result: p.result || '',
+            }));
+            blackjackRoom.stage = message.stage || 'lobby';
+            blackjackRoom.roundNo = Math.floor(Number(message.roundNo) || 0);
+            blackjackRoom.turnSlot = message.turnSlot ?? null;
+            blackjackRoom.dealerCards = Array.isArray(message.dealerCards) ? message.dealerCards : [];
+            blackjackRoom.dealt = Boolean(message.dealt);
+            blackjackRoom.resultText = message.resultText || '';
+            blackjackRoom.log = Array.isArray(message.log) ? message.log : [];
+            const me = blackjackRoom.players.find((p) => p.slot === blackjackRoom.mySlot);
+            if (me) me.cards = Array.isArray(message.myCards) ? message.myCards : [];
+            blackjackRoom.ready = true;
+            renderBlackjackClient();
+          }
+        } catch (error) { /* ignore */ }
+      });
+      conn.on('close', () => renderBlackjackClient());
+      conn.on('error', () => renderBlackjackClient());
+    });
+    peer.on('error', () => {
+      blackjackRoom.ready = false;
+      renderBlackjackClient();
+    });
+    peer.on('disconnected', () => { try { peer.reconnect(); } catch (err) { /* ignore */ } });
+  }
+
+  function resetBlackjackRoom() {
+    try { if (blackjackRoom.peer) blackjackRoom.peer.destroy(); } catch (error) { /* ignore */ }
+    blackjackRoom.mode = 'local';
+    blackjackRoom.code = '';
+    blackjackRoom.peer = null;
+    blackjackRoom.conns = [];
+    blackjackRoom.conn = null;
+    blackjackRoom.mySlot = 0;
+    blackjackRoom.ready = false;
+    blackjackRoom.players = [];
+    blackjackRoom.stage = 'lobby';
+    blackjackRoom.turnSlot = null;
+    blackjackRoom.dealerCards = [];
+    blackjackRoom.roundNo = 0;
+    blackjackRoom.resultText = '';
+    blackjackRoom.log = [];
+    blackjackRoom.dealt = false;
+    blackjackRoomSetMode('local');
+    $('#bjRoom').hidden = true;
+    $('#bjSolo').hidden = false;
+  }
+
+  $('#createBjRoomButton').addEventListener('click', createBlackjackRoom);
+  $('#endBjRoomButton').addEventListener('click', () => {
+    resetBlackjackRoom();
+    showToast('已結束 21 點房間');
+  });
+
+  // ---------- 百家樂 · 多人 ----------
+  const BAC_ROOM_HOST = 'pocket-bac-';
+  const baccaratRoom = {
+    mode: 'local', code: '', peer: null, conns: [], conn: null, mySlot: 0, ready: false,
+    players: [], stage: 'lobby', playerCards: [], bankerCards: [], roundNo: 0,
+    shoe: buildShoe(8), note: '', route: [], resultText: '',
+  };
+  const bacOnlineWanted = initSoloToggle('bacPlayMode', (soloOn) => {
+    if (!soloOn && baccaratRoom.mode === 'local') {
+      $('#bacRoom').hidden = false;
+      $('#bacSolo').hidden = true;
+    } else if (soloOn && baccaratRoom.mode === 'local') {
+      $('#bacRoom').hidden = true;
+      $('#bacSolo').hidden = false;
+    }
+    if (baccaratRoom.mode === 'host' || baccaratRoom.mode === 'client') {
+      $('#bacRoom').hidden = false;
+      $('#bacSolo').hidden = true;
+    }
+  });
+
+  function baccaratRoomSetMode(mode) {
+    baccaratRoom.mode = mode;
+    const connected = mode !== 'local';
+    $('#bacRoom').hidden = !connected;
+    $('#bacSolo').hidden = connected;
+    $('#bacRoomBadge').textContent = mode === 'host' ? '莊家' : mode === 'client' ? '已連線' : '本機';
+    $('#endBacRoomButton').hidden = !connected;
+    if (!connected) {
+      $('#bacRoomStatus').hidden = true;
+      $('#bacQrGrid').hidden = true;
+      $('#bacRoomIdle').hidden = true;
+    } else {
+      $('#bacRoomIdle').hidden = mode !== 'host';
+    }
+    if (mode === 'host') renderBaccaratRoomStage();
+    if (mode === 'client') renderBaccaratClient();
+    if (connected) {
+      $$('#bacPlayMode .solo-mode-option').forEach((button) => {
+        button.classList.toggle('is-selected', button.dataset.playmode === 'online');
+      });
+    }
+  }
+
+  function baccaratRoomLogLine(text, kind = '') {
+    baccaratRouteLog(text, kind);
+  }
+
+  function baccaratRouteLog(text, kind = '') {
+    baccaratRoom.note = text;
+  }
+
+  function bacRoomBroadcast() {
+    const base = {
+      type: 'state',
+      stage: baccaratRoom.stage,
+      roundNo: baccaratRoom.roundNo,
+      playerCards: baccaratRoom.playerCards,
+      bankerCards: baccaratRoom.bankerCards,
+      note: baccaratRoom.note,
+      resultText: baccaratRoom.resultText,
+      route: baccaratRoom.route.slice(-12),
+      players: baccaratRoom.players.map((p) => ({
+        slot: p.slot, name: p.name, chips: p.chips, bet: p.bet, side: p.side,
+        locked: p.locked, joined: p.joined, online: p.online !== false, lastResult: p.lastResult,
+      })),
+    };
+    cardRoomBroadcast(baccaratRoom.conns, base);
+    renderBaccaratRoomStage();
+  }
+
+  function baccaratRoomStartBetting() {
+    baccaratRoom.stage = 'bet';
+    baccaratRoom.playerCards = [];
+    baccaratRoom.bankerCards = [];
+    baccaratRoom.note = '';
+    baccaratRoom.resultText = '';
+    baccaratRoom.players.forEach((p) => {
+      p.locked = false;
+      if (p.bet <= 0) p.bet = 100;
+      p.lastResult = '';
+    });
+    baccaratRoomLogLine(`第 ${baccaratRoom.roundNo + 1} 局：大家押注`, '');
+    bacRoomBroadcast();
+  }
+
+  function baccaratRoomPlay() {
+    const locked = baccaratRoom.players.filter((p) => p.joined && p.locked);
+    if (!locked.length) {
+      showToast('至少一位牌手鎖定下注才能開牌');
+      return;
+    }
+    baccaratRoom.roundNo += 1;
+    baccaratRoom.stage = 'over';
+    baccaratRoom.playerCards = [];
+    baccaratRoom.bankerCards = [];
+    baccaratRoom.note = '';
+    if (baccaratRoom.shoe.deck.length < 40) {
+      baccaratRoom.shoe = buildShoe(8);
+      baccaratRoom.note = '牌剩不多，已重洗 8 副牌鞋';
+    }
+    const draw = () => baccaratRoom.shoe.deck.pop();
+    baccaratRoom.playerCards = [draw(), draw()];
+    baccaratRoom.bankerCards = [draw(), draw()];
+    let playerTotal = bacValue(baccaratRoom.playerCards);
+    let bankerTotal = bacValue(baccaratRoom.bankerCards);
+    if (playerTotal >= 8 || bankerTotal >= 8) {
+      baccaratRoom.note = `天生 ${Math.max(playerTotal, bankerTotal)} 點，兩邊不補牌`;
+    } else {
+      let third = null;
+      if (playerTotal <= 5) {
+        const card = draw();
+        baccaratRoom.playerCards.push(card);
+        third = bacCardPoint(card.rank);
+        baccaratRoom.note = `閒家補第三張（${third} 點）`;
+      } else {
+        baccaratRoom.note = '閒家 6/7 點，停牌';
+      }
+      let drawBanker = false;
+      if (third === null) drawBanker = bankerTotal <= 5;
+      else if (bankerTotal <= 2) drawBanker = true;
+      else if (bankerTotal === 3) drawBanker = third !== 8;
+      else if (bankerTotal === 4) drawBanker = ![0, 1, 8, 9].includes(third);
+      else if (bankerTotal === 5) drawBanker = ![0, 1, 2, 3, 8, 9].includes(third);
+      else if (bankerTotal === 6) drawBanker = third === 6 || third === 7;
+      if (drawBanker) {
+        baccaratRoom.bankerCards.push(draw());
+        baccaratRoom.note += '；莊家補第三張';
+      } else {
+        baccaratRoom.note += '；莊家不補';
+      }
+    }
+    const player = bacValue(baccaratRoom.playerCards);
+    const banker = bacValue(baccaratRoom.bankerCards);
+    const side = player === banker ? 'tie' : player > banker ? 'player' : 'banker';
+    baccaratRoom.route.push(side);
+    if (baccaratRoom.route.length > 12) baccaratRoom.route.shift();
+    baccaratRoom.players.forEach((p) => {
+      if (!p.joined || !p.locked || p.bet <= 0) return;
+      p.chips -= p.bet;
+      if (side === 'tie') {
+        if (p.side === 'tie') {
+          p.chips += p.bet * 9;
+          p.lastResult = 'win';
+        } else {
+          p.chips += p.bet;
+          p.lastResult = 'push';
+        }
+      } else if (side === p.side) {
+        if (side === 'player') {
+          p.chips += p.bet * 2;
+          p.lastResult = 'win';
+        } else {
+          p.chips += p.bet + Math.floor(p.bet * 0.95);
+          p.lastResult = 'win';
+        }
+      } else {
+        p.lastResult = 'loss';
+      }
+    });
+    baccaratRoom.resultText = `${side === 'player' ? '閒' : side === 'banker' ? '莊' : '和'} 贏 ${player}:${banker}`;
+    baccaratRoomLogLine(baccaratRoom.resultText, side === 'tie' ? 'push' : '');
+    bacRoomBroadcast();
+  }
+
+  function renderBaccaratRoomStage() {
+    const stage = $('#bacRoomStage');
+    stage.replaceChildren();
+    const header = document.createElement('div');
+    header.className = 'room-row-head';
+    const title = document.createElement('strong');
+    title.textContent = `百家樂 · ${baccaratRoom.roundNo > 0
+      ? `第 ${baccaratRoom.roundNo} 局`
+      : (baccaratRoom.stage === 'bet' ? '押注中 · 準備第 1 局' : '等待開局')}`;
+    const info = document.createElement('span');
+    info.textContent = `牌鞋 ${baccaratRoom.shoe.deck.length} 張`;
+    header.append(title, info);
+    stage.appendChild(header);
+
+    const row = document.createElement('div');
+    row.className = 'baccarat-row';
+    [[baccaratRoom.playerCards, '👤 閒家 PLAYER', 'bac-name-player', 'pacPlayerTotal'], [baccaratRoom.bankerCards, '🏦 莊家 BANKER', 'bac-name-banker', '']].forEach(([cards, label, nameCls]) => {
+      const seat = document.createElement('div');
+      seat.className = 'seat-baccarat';
+      const head = document.createElement('div');
+      head.className = 'seat-head';
+      const nm = document.createElement('span');
+      nm.className = `seat-name ${nameCls}`;
+      nm.textContent = label;
+      const total = document.createElement('span');
+      total.className = 'seat-chips';
+      total.textContent = cards.length ? `${bacValue(cards)} 點` : '—';
+      head.append(nm, total);
+      const hand = document.createElement('div');
+      hand.className = 'hand-cards';
+      cards.forEach((card) => hand.appendChild(createCardEl(card)));
+      seat.append(head, hand);
+      row.appendChild(seat);
+    });
+    const vs = document.createElement('div');
+    vs.className = 'baccarat-vs';
+    vs.textContent = 'VS';
+    row.insertBefore(vs, row.children[1]);
+    stage.appendChild(row);
+
+    const route = document.createElement('div');
+    route.className = 'bac-route';
+    baccaratRoom.route.forEach((side) => {
+      const chip = document.createElement('span');
+      chip.className = `route-chip route-${side}`;
+      chip.textContent = side === 'player' ? '閒' : side === 'banker' ? '莊' : '和';
+      route.appendChild(chip);
+    });
+    stage.appendChild(route);
+
+    const note = document.createElement('p');
+    note.className = 'room-note';
+    note.textContent = baccaratRoom.note || baccaratRoom.resultText || (baccaratRoom.stage === 'bet' ? '等牌手押注並鎖定。' : '牌手每人 1000 枚籌碼。');
+    stage.appendChild(note);
+
+    const table = document.createElement('div');
+    table.className = 'card-room-table';
+    baccaratRoom.players.forEach((p) => {
+      const rowHead = document.createElement('div');
+      rowHead.className = 'room-row-head';
+      const name = document.createElement('strong');
+      name.textContent = p.joined ? p.name : `（未加入）玩家 ${p.slot}`;
+      const status = document.createElement('span');
+      status.textContent = !p.joined ? '等待加入' : baccaratRoom.stage === 'bet' ? (p.locked ? `${p.bet} → ${p.side === 'player' ? '閒' : p.side === 'banker' ? '莊' : '和'}` : '下注中') : p.lastResult === 'win' ? '🎉 贏' : p.lastResult === 'loss' ? '輸' : p.lastResult === 'push' ? '退回' : `${p.bet} → ${p.side === 'player' ? '閒' : p.side === 'banker' ? '莊' : '和'}`;
+      rowHead.append(name, status);
+      table.appendChild(rowHead);
+    });
+    stage.appendChild(table);
+
+    const actions = document.createElement('div');
+    actions.className = 'client-actions';
+    if (baccaratRoom.stage === 'lobby') {
+      const start = document.createElement('button');
+      start.type = 'button';
+      start.className = 'action-btn is-primary';
+      start.textContent = '開始押注 · 第 1 局';
+      start.addEventListener('click', baccaratRoomStartBetting);
+      actions.appendChild(start);
+    } else if (baccaratRoom.stage === 'bet') {
+      const deal = document.createElement('button');
+      deal.type = 'button';
+      deal.className = 'action-btn is-primary';
+      deal.textContent = '開牌 · 第 ' + (baccaratRoom.roundNo + 1) + ' 局';
+      deal.addEventListener('click', baccaratRoomPlay);
+      actions.appendChild(deal);
+    } else if (baccaratRoom.stage === 'over') {
+      const next = document.createElement('button');
+      next.type = 'button';
+      next.className = 'action-btn is-primary';
+      next.textContent = '再開一局 · 重新押注';
+      next.addEventListener('click', baccaratRoomStartBetting);
+      actions.appendChild(next);
+    }
+    stage.appendChild(actions);
+  }
+
+  function renderBaccaratClient() {
+    const stage = $('#bacRoomStage');
+    stage.replaceChildren();
+    const me = baccaratRoom.players.find((p) => p.slot === baccaratRoom.mySlot);
+    if (!baccaratRoom.ready || !me) {
+      const wait = document.createElement('div');
+      wait.className = 'room-waiting';
+      wait.innerHTML = '<strong>正在連線莊家…</strong><span>若一直停在這，請確認莊家手機已建立房間且網路正常。</span>';
+      stage.appendChild(wait);
+      return;
+    }
+    const head = document.createElement('div');
+    head.className = 'room-row-head';
+    const title = document.createElement('strong');
+    title.textContent = `百家樂 · 第 ${baccaratRoom.roundNo || '—'} 局`;
+    const info = document.createElement('span');
+    info.textContent = `你 ${formatBankroll(me.chips)} 枚`;
+    head.append(title, info);
+    stage.appendChild(head);
+
+    if (baccaratRoom.stage === 'bet') {
+      const sideLabel = document.createElement('p');
+      sideLabel.className = 'room-note';
+      sideLabel.textContent = '押哪一邊？';
+      stage.appendChild(sideLabel);
+      const sides = document.createElement('div');
+      sides.className = 'bac-side-row';
+      [['player', '閒', '1:1'], ['banker', '莊', '1:0.95'], ['tie', '和', '8:1']].forEach(([key, label, odds]) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'bac-side';
+        button.classList.toggle('is-selected', me.side === key);
+        button.innerHTML = `${label} <span>${odds}</span>`;
+        button.addEventListener('click', () => cardRoomSend(baccaratRoom.conn, { type: 'side', side: key }));
+        sides.appendChild(button);
+      });
+      stage.appendChild(sides);
+      const betRow = document.createElement('div');
+      betRow.className = 'client-bet-row';
+      [100, 250, 500, 1000].forEach((amount) => {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'bet-chip';
+        chip.textContent = String(amount);
+        chip.classList.toggle('is-selected', me.bet === amount);
+        chip.addEventListener('click', () => cardRoomSend(baccaratRoom.conn, { type: 'bet', amount }));
+        betRow.appendChild(chip);
+      });
+      const all = document.createElement('button');
+      all.type = 'button';
+      all.className = 'bet-chip';
+      all.textContent = '全下';
+      all.classList.toggle('is-selected', me.bet === me.chips);
+      all.addEventListener('click', () => cardRoomSend(baccaratRoom.conn, { type: 'bet', amount: 'all' }));
+      betRow.appendChild(all);
+      stage.appendChild(betRow);
+      const lock = document.createElement('button');
+      lock.type = 'button';
+      lock.className = 'action-btn is-primary';
+      lock.textContent = me.locked ? `已鎖定 ${me.bet} → ${me.side === 'player' ? '閒' : me.side === 'banker' ? '莊' : '和'} ✓` : `鎖定下注 ${me.bet}`;
+      lock.addEventListener('click', () => cardRoomSend(baccaratRoom.conn, { type: 'lock' }));
+      stage.appendChild(lock);
+    } else if (baccaratRoom.stage === 'over') {
+      const cards = document.createElement('div');
+      cards.className = 'baccarat-row';
+      [[baccaratRoom.playerCards, '👤 閒家', 'bac-name-player'], [baccaratRoom.bankerCards, '🏦 莊家', 'bac-name-banker']].forEach(([hand, label, nameCls]) => {
+        const seat = document.createElement('div');
+        seat.className = 'seat-baccarat';
+        const head = document.createElement('div');
+        head.className = 'seat-head';
+        const nm = document.createElement('span');
+        nm.className = `seat-name ${nameCls}`;
+        nm.textContent = label;
+        const total = document.createElement('span');
+        total.className = 'seat-chips';
+        total.textContent = `${bacValue(hand)} 點`;
+        head.append(nm, total);
+        const cardsRow = document.createElement('div');
+        cardsRow.className = 'hand-cards';
+        hand.forEach((card) => cardsRow.appendChild(createCardEl(card)));
+        seat.append(head, cardsRow);
+        cards.appendChild(seat);
+      });
+      const vs = document.createElement('div');
+      vs.className = 'baccarat-vs';
+      vs.textContent = 'VS';
+      cards.insertBefore(vs, cards.children[1]);
+      stage.appendChild(cards);
+      const note = document.createElement('p');
+      note.className = 'room-note';
+      note.textContent = baccaratRoom.note || '';
+      stage.appendChild(note);
+      const result = document.createElement('div');
+      result.className = `client-result ${me.lastResult === 'win' ? '' : me.lastResult === 'loss' ? 'is-loss' : 'is-push'}`;
+      result.textContent = me.lastResult === 'win' ? '🎉 你贏了！' : me.lastResult === 'loss' ? '你輸了' : me.lastResult === 'push' ? '和局，下注退回' : '等待下一局';
+      stage.appendChild(result);
+    }
+  }
+
+  function handleBaccaratRoomHostMessage(conn, message) {
+    if (!message || typeof message !== 'object') return;
+    const p = baccaratRoom.players.find((x) => x.slot === conn.slot);
+    if (message.type === 'hello') {
+      const slot = clamp(Math.floor(Number(message.slot) || 0), 1, baccaratRoom.players.length);
+      conn.slot = slot;
+      const player = baccaratRoom.players.find((x) => x.slot === slot);
+      const name = validString(message.name, '').trim().slice(0, 14);
+      if (player) {
+        player.joined = true;
+        player.online = true;
+        if (name) player.name = name;
+      }
+      if (!baccaratRoom.conns.some((entry) => entry.conn === conn)) baccaratRoom.conns.push({ conn, slot });
+      const joined = baccaratRoom.players.filter((x) => x.joined).length;
+      $('#bacRoomStatus').textContent = `房間代號 ${baccaratRoom.code} · 已加入 ${joined}/${baccaratRoom.players.length} 人`;
+      $('#bacRoomStatus').hidden = false;
+      bacRoomBroadcast();
+    } else if (message.type === 'side' && p) {
+      if (baccaratRoom.stage !== 'bet') return;
+      p.side = ['player', 'banker', 'tie'].includes(message.side) ? message.side : 'player';
+      p.locked = false;
+      bacRoomBroadcast();
+    } else if (message.type === 'bet' && p) {
+      if (baccaratRoom.stage !== 'bet') return;
+      p.bet = message.amount === 'all' ? p.chips : Math.min(Math.floor(Number(message.amount) || 0), p.chips);
+      p.locked = false;
+      bacRoomBroadcast();
+    } else if (message.type === 'lock' && p) {
+      if (baccaratRoom.stage !== 'bet') return;
+      if (p.bet <= 0) {
+        showToast(`${p.name} 還未選下注金額`);
+        return;
+      }
+      p.locked = true;
+      bacRoomBroadcast();
+    }
+  }
+
+  function createBaccaratRoom() {
+    if (typeof Peer === 'undefined') {
+      showToast('連線程式未載入，請確認網路後重整');
+      return;
+    }
+    const count = clamp(Math.floor(Number($('#bacRoomPlayers').value) || 4), 2, 8);
+    const code = makeRoomCode();
+    baccaratRoom.code = code;
+    baccaratRoom.mySlot = 0;
+    baccaratRoom.conns = [];
+    baccaratRoom.players = Array.from({ length: count }, (_, index) => makeRoomPlayer(index + 1, index));
+    baccaratRoom.roundNo = 0;
+    baccaratRoom.stage = 'lobby';
+    baccaratRoom.playerCards = [];
+    baccaratRoom.bankerCards = [];
+    baccaratRoom.note = '';
+    baccaratRoom.route = [];
+    baccaratRoom.resultText = '';
+    baccaratRoomSetMode('host');
+    $('#bacRoomStatus').textContent = '建立中…';
+    $('#bacRoomStatus').hidden = false;
+    $('#bacQrGrid').hidden = true;
+    const peer = new Peer(`${BAC_ROOM_HOST}${code.toLowerCase()}`, { debug: 1 });
+    baccaratRoom.peer = peer;
+    peer.on('open', () => {
+      baccaratRoom.ready = true;
+      $('#bacRoomStatus').textContent = `房間代號 ${code} · 等大家掃 QR 加入`;
+      $('#bacRoomStatus').hidden = false;
+      cardRoomBuildQr($('#bacQrGrid'), 'bac', code, baccaratRoom.players.map((p) => p.slot), '掃描後設定名字，等待押注');
+      renderBaccaratRoomStage();
+    });
+    peer.on('connection', (conn) => cardRoomSetupHostConn(conn, handleBaccaratRoomHostMessage, (closed) => {
+      const result = cardRoomRemoveConn(baccaratRoom.conns, closed);
+      baccaratRoom.conns = result.conns;
+      if (result.removed) {
+        const player = baccaratRoom.players.find((x) => x.slot === result.removed.slot);
+        if (player) player.online = false;
+        const joined = baccaratRoom.players.filter((x) => x.joined).length;
+        $('#bacRoomStatus').textContent = `房間代號 ${baccaratRoom.code} · 已加入 ${joined}/${baccaratRoom.players.length} 人`;
+        bacRoomBroadcast();
+      }
+    }));
+    peer.on('error', (error) => {
+      const type = error && error.type;
+      if (type === 'unavailable-id') { showToast('房間代號衝突，請重試'); resetBaccaratRoom(); }
+      else showToast('連線暫時不穩，仍在嘗試');
+    });
+    peer.on('disconnected', () => { try { peer.reconnect(); } catch (err) { /* ignore */ } });
+  }
+
+  function joinBaccaratRoom(code, slot) {
+    if (typeof Peer === 'undefined') {
+      showToast('連線程式未載入，請確認網路後重整');
+      return;
+    }
+    baccaratRoom.mode = 'client';
+    baccaratRoom.code = code;
+    baccaratRoom.mySlot = slot;
+    baccaratRoom.ready = false;
+    baccaratRoom.conns = [];
+    baccaratRoom.players = [];
+    baccaratRoomSetMode('client');
+    $('#bacRoomStatus').hidden = true;
+    const peer = new Peer(makeCardClientId(BAC_ROOM_HOST, code, slot), { debug: 1 });
+    baccaratRoom.peer = peer;
+    peer.on('open', () => {
+      const conn = peer.connect(`${BAC_ROOM_HOST}${code.toLowerCase()}`, { reliable: true });
+      baccaratRoom.conn = conn;
+      conn.on('open', () => conn.send({ type: 'hello', slot, name: `玩家 ${slot}` }));
+      conn.on('data', (message) => {
+        try {
+          if (message && message.type === 'state' && Array.isArray(message.players)) {
+            baccaratRoom.players = message.players.map((p) => ({
+              ...makeRoomPlayer(p.slot, 0),
+              name: validString(p.name, `玩家 ${p.slot}`).trim().slice(0, 14) || `玩家 ${p.slot}`,
+              chips: clamp(Math.floor(Number(p.chips) || 0), 0, 999999),
+              bet: Math.max(0, Math.floor(Number(p.bet) || 0)),
+              side: ['player', 'banker', 'tie'].includes(p.side) ? p.side : 'player',
+              locked: Boolean(p.locked),
+              joined: Boolean(p.joined),
+              online: p.online !== false,
+              lastResult: p.lastResult || '',
+            }));
+            baccaratRoom.stage = message.stage || 'lobby';
+            baccaratRoom.roundNo = Math.floor(Number(message.roundNo) || 0);
+            baccaratRoom.playerCards = Array.isArray(message.playerCards) ? message.playerCards : [];
+            baccaratRoom.bankerCards = Array.isArray(message.bankerCards) ? message.bankerCards : [];
+            baccaratRoom.note = message.note || '';
+            baccaratRoom.resultText = message.resultText || '';
+            baccaratRoom.route = Array.isArray(message.route) ? message.route : [];
+            baccaratRoom.ready = true;
+            renderBaccaratClient();
+          }
+        } catch (error) { /* ignore */ }
+      });
+      conn.on('close', () => renderBaccaratClient());
+      conn.on('error', () => renderBaccaratClient());
+    });
+    peer.on('error', () => {
+      baccaratRoom.ready = false;
+      renderBaccaratClient();
+    });
+    peer.on('disconnected', () => { try { peer.reconnect(); } catch (err) { /* ignore */ } });
+  }
+
+  function resetBaccaratRoom() {
+    try { if (baccaratRoom.peer) baccaratRoom.peer.destroy(); } catch (error) { /* ignore */ }
+    baccaratRoom.mode = 'local';
+    baccaratRoom.code = '';
+    baccaratRoom.peer = null;
+    baccaratRoom.conns = [];
+    baccaratRoom.conn = null;
+    baccaratRoom.mySlot = 0;
+    baccaratRoom.ready = false;
+    baccaratRoom.players = [];
+    baccaratRoom.stage = 'lobby';
+    baccaratRoom.playerCards = [];
+    baccaratRoom.bankerCards = [];
+    baccaratRoom.roundNo = 0;
+    baccaratRoom.note = '';
+    baccaratRoom.route = [];
+    baccaratRoom.resultText = '';
+    baccaratRoomSetMode('local');
+    $('#bacRoom').hidden = true;
+    $('#bacSolo').hidden = false;
+  }
+
+  $('#createBacRoomButton').addEventListener('click', createBaccaratRoom);
+  $('#endBacRoomButton').addEventListener('click', () => {
+    resetBaccaratRoom();
+    showToast('已結束百家樂房間');
+  });
+
+  function resetCardPlaySessions() {
+    texasResetChips();
+    bjResetChips();
+    bacResetChips();
+    resetTexasRoom();
+    resetBlackjackRoom();
+    resetBaccaratRoom();
+  }
+
+  renderTexas();
+  renderBlackjack();
+  renderBaccarat();
+
   // Clear local data dialog
   const clearDataModal = $('#clearDataModal');
   $('#clearDataButton').addEventListener('click', () => {
@@ -7324,6 +10375,7 @@
     resetAgentSync();
     try { localStorage.removeItem(STORAGE_KEY); } catch (error) { /* ignore */ }
     state = defaultState();
+    resetCardPlaySessions();
     renderDice();
     renderWheelOptions();
     wheelRotation = 0;
