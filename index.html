@@ -165,7 +165,7 @@
                   <span class="game-entry-emoji" aria-hidden="true">🂡</span>
                   <span class="game-entry-copy">
                     <strong>德州撲克 <em class="new-tag">NEW</em></strong>
-                    <span>你 vs 電腦莊家：盲注、翻牌轉牌河牌、加注全下，一局攤牌比牌型。</span>
+                    <span>多人：每人一機掃 QR 加入，2–8 人一桌；也能單機 vs 電腦。盲注、翻牌轉牌河牌、加注全下。</span>
                   </span>
                   <span class="game-entry-go">開始 →</span>
                 </button>
@@ -173,7 +173,7 @@
                   <span class="game-entry-emoji" aria-hidden="true">♠</span>
                   <span class="game-entry-copy">
                     <strong>21 點 <em class="new-tag">NEW</em></strong>
-                    <span>和莊家比點數：要牌、停牌、加倍；黑傑克 3:2，莊家 17 點停牌。</span>
+                    <span>多人：掃 QR 加入輪流要牌停牌；也能單機 vs 莊家。黑傑克 3:2，莊家 17 點停牌。</span>
                   </span>
                   <span class="game-entry-go">開始 →</span>
                 </button>
@@ -181,7 +181,7 @@
                   <span class="game-entry-emoji" aria-hidden="true">🃏</span>
                   <span class="game-entry-copy">
                     <strong>百家樂 <em class="new-tag">NEW</em></strong>
-                    <span>押閒、莊或和，八副牌鞋、完整補牌規則，看路單紀錄連莊。</span>
+                    <span>多人：每人一機押閒莊和；也能單機。八副牌鞋、完整補牌規則、路單。</span>
                   </span>
                   <span class="game-entry-go">開始 →</span>
                 </button>
@@ -1123,7 +1123,7 @@
             <div>
               <p class="section-kicker">TEXAS HOLD'EM</p>
               <h2>德州撲克</h2>
-              <p>你和電腦莊家各拿兩張牌，五張公共牌一路翻出：下注、加注、棄牌，最後攤牌比牌型。</p>
+              <p>每人兩張暗牌、五張公共牌：下注、加注、棄牌，最後攤牌比牌型。可 2–8 人掃 QR 同桌，也可單機 vs 電腦。</p>
             </div>
             <div class="round-counter">
               <span class="counter-label">我的籌碼</span>
@@ -1154,7 +1154,36 @@
             </div>
           </details>
 
-          <div class="casino-layout">
+          <div class="solo-mode-row card-mode-row" id="texasPlayMode" role="group" aria-label="遊玩模式">
+            <button type="button" class="solo-mode-option is-selected" data-playmode="solo" data-card-game="texas"><strong>🂡 單機人機</strong><small>一台手機 · 免網路</small></button>
+            <button type="button" class="solo-mode-option" data-playmode="online" data-card-game="texas"><strong>📱 多人連線</strong><small>每人一機 · 掃 QR 加入</small></button>
+          </div>
+
+          <div class="card-room wolf-panel panel-surface" id="texasRoom" hidden>
+            <div class="sync-heading">
+              <div class="sync-icon card-room-icon" aria-hidden="true">🂡</div>
+              <div class="sync-heading-copy">
+                <p class="tool-card-kicker">MULTI-DEVICE TEXAS</p>
+                <h4>多人德州撲克房間</h4>
+              </div>
+              <span class="sync-badge" id="texasRoomBadge">本機</span>
+            </div>
+            <div class="card-room-idle" id="texasRoomIdle">
+              <p class="sync-copy">這台手機是<b>莊家（主持人）</b>。其他人用手機<b>掃自己的 QR</b> 加入成為牌手，每人開局 1000 籌碼；所有發牌、結算都在這台手機用 Crypto RNG 完成，棋牌明牌暗牌由莊家手機統一廣播，不用道具。</p>
+              <div class="card-room-setup">
+                <label for="texasRoomPlayers">牌手人數</label>
+                <input class="mini-number" id="texasRoomPlayers" type="number" min="2" max="8" value="4" inputmode="numeric" />
+                <span class="setup-suffix">人 · 2–8 人</span>
+              </div>
+              <button class="button button-dark sync-create-button" id="createTexasRoomButton" type="button">建立多人德州撲克房間 <span>↗</span></button>
+            </div>
+            <div class="sync-status wolf-status" id="texasRoomStatus" aria-live="polite" hidden></div>
+            <div class="qr-grid" id="texasQrGrid" hidden></div>
+            <div class="card-room-stage" id="texasRoomStage" aria-live="polite"></div>
+            <button class="text-button" id="endTexasRoomButton" type="button" hidden>結束房間 <span>↺</span></button>
+          </div>
+
+          <div class="casino-layout" id="texasSolo">
             <div class="casino-table panel-surface">
               <div class="table-topline">
                 <span class="table-chip" id="texasDeckInfo">🂠 已洗牌</span>
@@ -1205,7 +1234,7 @@
             <div>
               <p class="section-kicker">BLACKJACK 21</p>
               <h2>21 點</h2>
-              <p>和電腦莊家比點數：不要超過 21，點數比莊家大就贏。黑傑克（兩張 A+10）3:2 賠率。</p>
+              <p>和莊家比點數，不要超過 21：可 2–8 人掃 QR 同桌輪流要牌，也可單機 vs 莊家。黑傑克 3:2。</p>
             </div>
             <div class="round-counter">
               <span class="counter-label">我的籌碼</span>
@@ -1223,7 +1252,7 @@
                 <h4>🃏 點數算法</h4>
                 <p>A = 1 或 11（自動取最有利的）；2–10 = 面值；J / Q / K = 10。兩張牌就是 21（A + 10 點牌）叫做 <strong>黑傑克</strong>。</p>
                 <h4>💰 怎麼玩</h4>
-                <p>① 選好下注金額（25–1000 或全下）→ ② 按「發牌」→ ③ 選：<strong>要牌</strong>（再抽一張）/ <strong>停牌</strong>（不再抽）/ <strong>加倍</strong>（下注翻倍、只再抽一張，僅限前兩張）→ ④ 你停牌後，莊家翻開暗牌補到 17 點為止。</p>
+                <p><strong>📱 多人連線：</strong>莊家手機建立房間，牌手掃 QR 加入；牌手各自下注鎖定後莊家發牌，按座位輪流要牌、停牌、加倍，莊家最後補牌，各人比自己的點數。<strong>單機人機：</strong>選好下注金額 → 按「發牌」→ 選<strong>要牌</strong>／<strong>停牌</strong>／<strong>加倍</strong>（僅限前兩張、下注翻倍）→ 你停牌後莊家翻開暗牌補到 17 點為止。</p>
                 <h4>🏁 勝負與賠率</h4>
                 <p>你爆牌（超過 21）→ 輸；莊家爆牌而你沒爆 → 贏；誰點數大誰贏；平點 → 退回（和局）。賠率：普通贏 1:1，黑傑克贏 <strong>3:2</strong>（下 100 贏 150）。</p>
                 <h4>📋 本版規則</h4>
@@ -1234,7 +1263,36 @@
             </div>
           </details>
 
-          <div class="casino-layout">
+          <div class="solo-mode-row card-mode-row" id="bjPlayMode" role="group" aria-label="遊玩模式">
+            <button type="button" class="solo-mode-option is-selected" data-playmode="solo" data-card-game="bj"><strong>♠ 單機人機</strong><small>一台手機 · 免網路</small></button>
+            <button type="button" class="solo-mode-option" data-playmode="online" data-card-game="bj"><strong>📱 多人連線</strong><small>每人一機 · 掃 QR 加入</small></button>
+          </div>
+
+          <div class="card-room wolf-panel panel-surface" id="bjRoom" hidden>
+            <div class="sync-heading">
+              <div class="sync-icon card-room-icon" aria-hidden="true">♠</div>
+              <div class="sync-heading-copy">
+                <p class="tool-card-kicker">MULTI-DEVICE BLACKJACK</p>
+                <h4>多人 21 點房間</h4>
+              </div>
+              <span class="sync-badge" id="bjRoomBadge">本機</span>
+            </div>
+            <div class="card-room-idle" id="bjRoomIdle">
+              <p class="sync-copy">這台手機是<b>莊家（主持人）</b>。其他人用手機<b>掃自己的 QR</b> 加入，每人開局 1000 籌碼；莊家手機用 Crypto RNG 發牌，按座位順序輪流要牌、停牌、加倍，不用實體牌。</p>
+              <div class="card-room-setup">
+                <label for="bjRoomPlayers">玩家人數</label>
+                <input class="mini-number" id="bjRoomPlayers" type="number" min="2" max="8" value="4" inputmode="numeric" />
+                <span class="setup-suffix">人 · 加上莊家</span>
+              </div>
+              <button class="button button-dark sync-create-button" id="createBjRoomButton" type="button">建立多人 21 點房間 <span>↗</span></button>
+            </div>
+            <div class="sync-status wolf-status" id="bjRoomStatus" aria-live="polite" hidden></div>
+            <div class="qr-grid" id="bjQrGrid" hidden></div>
+            <div class="card-room-stage" id="bjRoomStage" aria-live="polite"></div>
+            <button class="text-button" id="endBjRoomButton" type="button" hidden>結束房間 <span>↺</span></button>
+          </div>
+
+          <div class="casino-layout" id="bjSolo">
             <div class="casino-table panel-surface">
               <div class="table-topline">
                 <span class="table-chip" id="bjDeckInfo">🂠 已洗牌</span>
@@ -1289,7 +1347,7 @@
             <div>
               <p class="section-kicker">BACCARAT</p>
               <h2>百家樂</h2>
-              <p>不用動腦的經典賭場遊戲：押「閒」或「莊」誰的點數接近 9，或押「和」搏 8 倍。</p>
+              <p>押「閒」「莊」或「和」猜誰接近 9：可 2–8 人掃 QR 各自押注，也可單機。和局 8:1。</p>
             </div>
             <div class="round-counter">
               <span class="counter-label">我的籌碼</span>
@@ -1310,6 +1368,8 @@
                 <p>① 兩邊先各發兩張；<br>② 任何一邊 <strong>8 或 9</strong>（天生）→ 不補牌；<br>③ 閒家 0–5 點 → 補第三張；6–7 點 → 停牌；<br>④ 莊家依閒家是否補牌、補到什麼點數，按賭場標準補牌表自動決定是否補第三張。你只需看結果。</p>
                 <h4>💰 賠率</h4>
                 <p>押<strong>閒</strong>贏 → 1:1；押<strong>莊</strong>贏 → 1:0.95（5% 抽水自動扣除）；押<strong>和</strong>中 → <strong>8:1</strong>，此局閒莊下注退回。</p>
+                <h4>📱 多人連線</h4>
+                <p>莊家手機建立房間（負責發牌與開牌），其他牌手掃 QR 加入後，在自己的手機押閒／莊／和並鎖定；莊家開牌後各自結算，牌桌右側路單同步給所有人看。也可以玩單機人機版。</p>
                 <h4>🏁 勝負與統計</h4>
                 <p>開牌後自動結算，右側「路單」記錄最近 12 局（閒 / 莊 / 和），可以看連莊趨勢。籌碼不足時按「重置籌碼」回到 1000 枚。</p>
                 <h4>🎲 公平性</h4>
@@ -1318,7 +1378,36 @@
             </div>
           </details>
 
-          <div class="casino-layout">
+          <div class="solo-mode-row card-mode-row" id="bacPlayMode" role="group" aria-label="遊玩模式">
+            <button type="button" class="solo-mode-option is-selected" data-playmode="solo" data-card-game="bac"><strong>🃏 單機人機</strong><small>一台手機 · 免網路</small></button>
+            <button type="button" class="solo-mode-option" data-playmode="online" data-card-game="bac"><strong>📱 多人連線</strong><small>每人一機 · 掃 QR 加入</small></button>
+          </div>
+
+          <div class="card-room wolf-panel panel-surface" id="bacRoom" hidden>
+            <div class="sync-heading">
+              <div class="sync-icon card-room-icon" aria-hidden="true">🃏</div>
+              <div class="sync-heading-copy">
+                <p class="tool-card-kicker">MULTI-DEVICE BACCARAT</p>
+                <h4>多人百家樂房間</h4>
+              </div>
+              <span class="sync-badge" id="bacRoomBadge">本機</span>
+            </div>
+            <div class="card-room-idle" id="bacRoomIdle">
+              <p class="sync-copy">這台手機是<b>莊家（主持人）</b>，負責用 Crypto RNG 發牌與開牌。其他人用手機<b>掃自己的 QR</b> 加入，看桌面即時開牌，然後在自己的手機押閒、莊或和，每局各自結算。</p>
+              <div class="card-room-setup">
+                <label for="bacRoomPlayers">玩家人數</label>
+                <input class="mini-number" id="bacRoomPlayers" type="number" min="2" max="8" value="4" inputmode="numeric" />
+                <span class="setup-suffix">人 · 2–8 人</span>
+              </div>
+              <button class="button button-dark sync-create-button" id="createBacRoomButton" type="button">建立多人百家樂房間 <span>↗</span></button>
+            </div>
+            <div class="sync-status wolf-status" id="bacRoomStatus" aria-live="polite" hidden></div>
+            <div class="qr-grid" id="bacQrGrid" hidden></div>
+            <div class="card-room-stage" id="bacRoomStage" aria-live="polite"></div>
+            <button class="text-button" id="endBacRoomButton" type="button" hidden>結束房間 <span>↺</span></button>
+          </div>
+
+          <div class="casino-layout" id="bacSolo">
             <div class="casino-table panel-surface">
               <div class="table-topline">
                 <span class="table-chip" id="bacDeckInfo">🂠 已洗牌</span>

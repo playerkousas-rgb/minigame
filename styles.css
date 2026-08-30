@@ -4410,6 +4410,213 @@ button.agent-word:not(:disabled):hover {
   margin-bottom: 14px;
 }
 
+/* ===== 多人卡牌房間 ===== */
+#texasSolo[hidden],
+#bjSolo[hidden],
+#bacSolo[hidden],
+.card-room[hidden],
+.card-room-idle[hidden] {
+  display: none;
+}
+
+.card-mode-row {
+  margin: 0 0 16px;
+}
+
+.card-room {
+  padding: 18px;
+  margin-bottom: 16px;
+}
+
+.card-room-icon {
+  color: var(--blue);
+  background: rgba(112, 198, 255, 0.13);
+}
+
+.card-room-idle {
+  display: grid;
+  gap: 13px;
+}
+
+.card-room-setup {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.card-room-setup label {
+  color: #a6a8b0;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.card-room-stage {
+  display: grid;
+  gap: 9px;
+}
+
+.card-room-table {
+  display: grid;
+  gap: 5px;
+  padding: 11px 13px;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 15px;
+  background: rgba(0, 0, 0, 0.32);
+}
+
+.room-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.room-row-head strong {
+  color: var(--paper);
+  font-size: 12.5px;
+  font-weight: 850;
+}
+
+.room-row-head span {
+  color: #8f929b;
+  font-size: 10.5px;
+  font-weight: 750;
+}
+
+.room-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  min-height: 46px;
+}
+
+.room-note {
+  color: #9b9da5;
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+
+.room-waiting {
+  display: grid;
+  gap: 7px;
+  padding: 13px;
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  border-radius: 15px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.room-waiting strong {
+  color: var(--paper);
+  font-size: 13px;
+}
+
+.room-waiting span {
+  color: #8f929b;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.room-player-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.room-chip {
+  padding: 3px 9px;
+  color: #cfd1d8;
+  font-size: 10.5px;
+  font-weight: 800;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.room-chip.is-out {
+  color: #ff9d92;
+  border-color: rgba(255, 128, 111, 0.35);
+  background: rgba(255, 128, 111, 0.07);
+}
+
+.room-chip.is-turn {
+  color: var(--ink);
+  border-color: var(--lime);
+  background: var(--lime);
+}
+
+/* 玩家端（client）通用 */
+.client-card-room {
+  display: grid;
+  gap: 13px;
+}
+
+.client-card-room .hand-cards {
+  justify-content: flex-start;
+  min-height: 74px;
+}
+
+.client-card-room .seat-hint {
+  text-align: left;
+}
+
+.client-bet-row,
+.client-bet-row-small {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.client-bet-row .bet-chip {
+  min-width: 74px;
+}
+
+.client-bet-row-small .bet-chip {
+  min-width: 64px;
+}
+
+.client-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.client-actions .action-btn {
+  min-height: 46px;
+}
+
+.client-result {
+  padding: 12px 14px;
+  color: var(--paper);
+  font-size: 13px;
+  font-weight: 800;
+  text-align: center;
+  border: 1px solid rgba(216, 255, 95, 0.24);
+  border-radius: 13px;
+  background: rgba(216, 255, 95, 0.05);
+}
+
+.client-result.is-loss {
+  color: #ffb0a6;
+  border-color: rgba(255, 128, 111, 0.3);
+  background: rgba(255, 128, 111, 0.06);
+}
+
+.client-result.is-push {
+  color: var(--yellow);
+  border-color: rgba(255, 207, 86, 0.3);
+  background: rgba(255, 207, 86, 0.05);
+}
+
+.client-secret {
+  text-align: center;
+}
+
+.client-secret .playing-card {
+  margin: 0 auto 8px;
+}
+
 .route-chip {
   display: grid;
   place-items: center;
@@ -5444,11 +5651,25 @@ button.agent-word:not(:disabled):hover {
   }
 
   .baccarat-row {
-    gap: 7px;
+    gap: 6px;
   }
 
   .bac-side {
     min-height: 50px;
+  }
+
+  .card-room {
+    padding: 15px;
+  }
+
+  .room-cards .playing-card,
+  .client-card-room .playing-card {
+    width: 43px;
+    height: 61px;
+  }
+
+  .card-mode-row .solo-mode-option {
+    padding: 9px 8px;
   }
 }
 
