@@ -3883,6 +3883,14 @@
       places: ['醫院', '診所', '藥局', '健身房', '公園', '游泳池', '牙醫診所', '保健食品店'],
     },
   };
+
+  // 玩法版本:版本 C 由系統在後台隨機抽 A 或 B,開局前不透露、揭曉才公布。
+  const SPY_MODE_PRESETS = [
+    { id: 'undercover', label: '版本 A · 誰是臥底', desc: '臥底拿到一個相似的詞,要想辦法隱藏自己' },
+    { id: 'spyfall', label: '版本 B · 間諜危機', desc: '臥底拿到一個完全無關的詞,討論時最容易現形' },
+    { id: 'random', label: '版本 C · 隨機', desc: '系統在後台隨機抽 A 或 B,揭曉時才公布' },
+  ];
+
   const spySync = {
     mode: 'local',      // 'local' | 'host' | 'client'
     solo: false,        // 離線單機：不連 PeerJS、不發 QR,輪流傳手機
@@ -3907,6 +3915,9 @@
   const spyClientPanel = $('#spyClient');
   const spyBadge = $('#spyBadge');
   const spyCustomToggle = $('#spyCustomToggle');
+  const spyModeChoice = $('#spyModeChoice');
+  const spyModeList = $('#spyModeList');
+  let spySelectedMode = 'undercover';
   const spyCount = $('#spyCount');
   const spySpies = $('#spySpies');
   const spyMinutes = $('#spyMinutes');
@@ -4001,6 +4012,27 @@
     return pool[randomInt(pool.length)];
   }
 
+  function renderSpyModeList() {
+    spyModeList.replaceChildren();
+    SPY_MODE_PRESETS.forEach((preset, index) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'wolf-preset' + (preset.id === spySelectedMode ? ' is-selected' : '');
+      button.dataset.spyMode = preset.id;
+      const title = document.createElement('strong');
+      title.textContent = preset.label;
+      const sub = document.createElement('span');
+      sub.textContent = preset.desc;
+      button.append(title, sub);
+      button.addEventListener('click', () => {
+        $$('.wolf-preset', spyModeList).forEach((el) => el.classList.remove('is-selected'));
+        button.classList.add('is-selected');
+        spySelectedMode = preset.id;
+      });
+      spyModeList.appendChild(button);
+    });
+  }
+
   function createSpyRoom() {
     if (spySync.mode !== 'local') return;
     const solo = spySoloWanted();
@@ -4012,10 +4044,11 @@
     const spyTotal = clamp(Number(spySpies.value) || 1, 1, 2);
     if (spyTotal >= count) { showToast('臥底人數要比玩家人數少'); return; }
     const customWanted = spyCustomToggle.checked;
-    // 詞組主題與種類都由系統在後台祕密決定(自訂詞組除外),不對任何人透露。
+    // 詞組主題由系統在後台祕密決定(自訂詞組除外);玩法 A/B 由主持人選,C 由系統隨機抽、揭曉才公布。
     const presetThemeIds = Object.keys(SPY_THEMES);
     const themeId = customWanted ? 'custom' : presetThemeIds[randomInt(presetThemeIds.length)];
-    let mode = '';
+    const picked = spySelectedMode === 'random' ? (Math.random() < 0.6 ? 'undercover' : 'spyfall') : spySelectedMode;
+    let mode = picked;
     let word = '';
     let spyWord = '';
     if (themeId === 'custom') {
@@ -4026,9 +4059,7 @@
       if (!spyWord) spyWord = spyRandomForeignWord(word);
     } else {
       const theme = SPY_THEMES[themeId] || SPY_THEMES.party;
-      // 種類由系統在後台隨機決定,不對任何人透露:
       // 'undercover' = 臥底拿到相似詞;'spyfall' = 臥底拿到完全無關的亂入詞。
-      mode = Math.random() < 0.6 ? 'undercover' : 'spyfall';
       const pick = theme.pairs[randomInt(theme.pairs.length)];
       word = pick[0];
       spyWord = mode === 'undercover' ? pick[1] : spyRandomForeignWord(word);
@@ -4041,7 +4072,7 @@
     spySync.code = code;
     spySync.mySlot = 0;
     spySync.conns = [];
-    spySync.config = { mode, word, spyWord, minutes: Number(spyMinutes.value) || 3, voice: spyVoiceToggle.checked, spyCount: spyTotal, theme: themeId };
+    spySync.config = { mode, word, spyWord, minutes: Number(spyMinutes.value) || 3, voice: spyVoiceToggle.checked, spyCount: spyTotal, theme: themeId, pick: spySelectedMode };
     spySync.players = Array.from({ length: count }, (_, index) => ({
       name: (solo ? (spySoloNamesDraft[index] || '').trim().slice(0, 14) : '') || `玩家 ${index + 1}`,
       isSpy: spySlots.has(index),
@@ -4675,11 +4706,12 @@
         spyPhaseActions.appendChild(words);
         const kind = document.createElement('p');
         kind.className = 'wolf-custom-summary';
+        const randomNote = spySync.config.pick === 'random' ? '(版本 C 隨機抽中)' : '';
         kind.textContent = spySync.config.mode === 'custom'
           ? '本局種類:自訂詞(主持人設定的詞)'
           : spySync.config.mode === 'undercover'
-            ? '本局種類:相似詞(臥底拿到的是相似詞)'
-            : '本局種類:亂入詞(臥底拿到的是完全無關的詞)';
+            ? `本局種類:相似詞(臥底拿到的是相似詞)${randomNote}`
+            : `本局種類:亂入詞(臥底拿到的是完全無關的詞)${randomNote}`;
         spyPhaseActions.appendChild(kind);
         const themeLine = document.createElement('p');
         themeLine.className = 'wolf-custom-summary';
@@ -4829,7 +4861,7 @@
       spyClientBody.appendChild(card);
       spyClientBody.appendChild(spyNameEditor());
       spyClientBody.appendChild(buildGameRules('誰是臥底怎麼玩?', [
-        '系統在後台祕密決定本局詞組主題、種類(相似詞或亂入詞)與誰是臥底,連臥底自己都不會被通知。',
+        '詞組主題與誰是臥底都由系統後台祕密決定,連臥底自己都不會被通知;若主持人選了版本 C,本局種類也會在揭曉才公布。',
         '大部分人是同一個詞(平民),少數人拿到另一個詞(臥底),輪流描述自己的詞、不能講關鍵字。',
         '發現自己的詞跟別人不一樣時,就要想辦法混過去;討論結束後手機投票抓臥底。',
         '投中是臥底 → 平民贏;沒抓到 → 臥底贏。揭曉時會公布種類與兩個詞。',
@@ -4928,6 +4960,7 @@
 
   spyCustomToggle.addEventListener('change', () => {
     spyCustom.hidden = !spyCustomToggle.checked;
+    spyModeChoice.hidden = spyCustomToggle.checked;
   });
   spyCount.addEventListener('change', () => {
     if (!$('#spySoloNames').hidden) renderSpySoloNameList();
@@ -4953,6 +4986,7 @@
     if (!step || step.id === 'result') return;
     spyAdvance();
   });
+  renderSpyModeList();
   renderSpySoloNameList();
   spySetMode('local');
 

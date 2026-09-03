@@ -802,7 +802,7 @@
               <h2>誰是臥底 / 間諜危機</h2>
               <p>一人一機秘密發詞。每個人只看到自己的詞——連臥底自己都不知道自己是臥底;詞組主題也由系統隨機祕密決定,輪流描述、投票、揭曉,抓出內鬼。</p>
             </div>
-            <div class="tool-count-badge"><span>2</span><small>祕密種類</small></div>
+            <div class="tool-count-badge"><span>3</span><small>種玩法</small></div>
           </div>
 
           <!-- Setup -->
@@ -814,8 +814,12 @@
                 <h4>建立誰是臥底房間</h4>
               </div>
             </div>
-            <p class="sync-copy" id="spyOnlineCopy">建立房間後,<strong>詞組主題、本局種類與誰是臥底都由系統在後台祕密決定</strong>(除非你勾選自訂詞組自己出題);<strong>每人掃自己的 QR</strong> 就會在手機上收到秘密詞,這部裝置是主持人。臥底自己也不會被告知。</p>
-            <p class="sync-copy" id="spySoloCopy" hidden><strong>離線單機</strong>:不需網路、不掃 QR。建立前先把<strong>所有人的名字一次填好</strong>,之後輪流傳手機看自己的詞即可(傳手機時不用再輸入名字);主題與種類同樣由系統祕密決定,討論計時照常,投票由玩家比手勢、主持人點黑卡收票,自動揭曉。全場只要這一台手機。</p>
+            <p class="sync-copy" id="spyOnlineCopy">選好<strong>玩法</strong>後建立房間;除自訂詞組外,<strong>詞組主題與誰是臥底都由系統在後台祕密決定</strong>。<strong>每人掃自己的 QR</strong> 就會在手機上收到秘密詞,這部裝置是主持人。臥底自己也不會被告知。</p>
+            <p class="sync-copy" id="spySoloCopy" hidden><strong>離線單機</strong>:不需網路、不掃 QR。建立前先把<strong>所有人的名字一次填好</strong>、選好玩法,之後輪流傳手機看自己的詞即可(傳手機時不用再輸入名字);詞組主題同樣由系統祕密決定,討論計時照常,投票由玩家比手勢、主持人點黑卡收票,自動揭曉。全場只要這一台手機。</p>
+            <div id="spyModeChoice">
+              <div class="wolf-step"><span class="wolf-step-no">STEP 1</span><strong>選擇玩法</strong><small>三種版本 · 不同規則</small></div>
+              <div class="wolf-preset-list" id="spyModeList" role="group" aria-label="玩法選擇"></div>
+            </div>
             <div class="spy-settings">
               <label class="spy-field">玩家人數
                 <select id="spyCount">
@@ -830,7 +834,7 @@
               </label>
             </div>
             <div class="spy-solo-names" id="spySoloNames" hidden>
-              <div class="wolf-step"><span class="wolf-step-no">STEP 1</span><strong>輸入大家的名字</strong><small>離線傳手機時直接看詞,不必再輸入</small></div>
+              <div class="wolf-step"><span class="wolf-step-no">STEP 2</span><strong>輸入大家的名字</strong><small>離線傳手機時直接看詞,不必再輸入</small></div>
               <div class="spy-solo-name-list" id="spySoloNameList"></div>
             </div>
             <label class="wolf-voice-row">
@@ -845,7 +849,8 @@
             </div>
             <details class="game-rules">
               <summary>📖 誰是臥底怎麼玩?</summary>
-              <p>系統在後台祕密決定本局<strong>詞組主題</strong>、種類(相似詞或亂入詞)與誰是臥底,不對任何人透露——<strong>連臥底自己都不知道自己是臥底</strong>。</p>
+              <p>玩法三選一:<strong>版本 A 相似詞</strong>(臥底拿到近義詞)、<strong>版本 B 亂入詞</strong>(臥底拿到無關詞)、<strong>版本 C 隨機</strong>(系統後台抽,揭曉才公布)。</p>
+              <p>詞組主題由系統在後台祕密決定;誰是臥底不對任何人透露——<strong>連臥底自己都不知道自己是臥底</strong>。</p>
               <p>每人手機只收到一個詞:大部分人是同一個詞(平民),少數人拿到另一個詞(臥底)。</p>
               <p>大家輪流描述自己的詞,不能直接講出關鍵字;發現自己的詞跟別人不一樣時,就要想辦法混過去。</p>
               <p>討論結束後,每人手機投票,投出你認為是臥底的人。</p>
