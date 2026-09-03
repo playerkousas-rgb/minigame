@@ -2,6 +2,9 @@
   'use strict';
 
   const STORAGE_KEY = 'pocket-play-state-v1';
+  const VOICE_STORAGE_KEY = 'pocket-play-voice-v1';
+  // 全站語音導播總開關:所有遊戲的語音提示都受它控制(各遊戲內還有自己的開關)。
+  let globalVoice = true;
   const MAX_WHEEL_OPTIONS = 12;
   const DICE_PIPS = {
     1: ['center'],
@@ -2027,7 +2030,7 @@
   }
 
   function wolfSpeak(text) {
-    if (!wolfSync.config || !wolfSync.config.voice) return;
+    if (!globalVoice || !wolfSync.config || !wolfSync.config.voice) return;
     try {
       const synth = window.speechSynthesis;
       if (!synth) return;
@@ -3903,7 +3906,7 @@
   const spyHostPanel = $('#spyHost');
   const spyClientPanel = $('#spyClient');
   const spyBadge = $('#spyBadge');
-  const spyTheme = $('#spyTheme');
+  const spyCustomToggle = $('#spyCustomToggle');
   const spyCount = $('#spyCount');
   const spySpies = $('#spySpies');
   const spyMinutes = $('#spyMinutes');
@@ -3959,7 +3962,7 @@
   }
 
   function spySpeak(text) {
-    if (!spySync.config || !spySync.config.voice) return;
+    if (!globalVoice || !spySync.config || !spySync.config.voice) return;
     try {
       const synth = window.speechSynthesis;
       if (!synth) return;
@@ -4008,7 +4011,10 @@
     const count = clamp(Number(spyCount.value) || 6, 4, 12);
     const spyTotal = clamp(Number(spySpies.value) || 1, 1, 2);
     if (spyTotal >= count) { showToast('臥底人數要比玩家人數少'); return; }
-    const themeId = spyTheme.value;
+    const customWanted = spyCustomToggle.checked;
+    // 詞組主題與種類都由系統在後台祕密決定(自訂詞組除外),不對任何人透露。
+    const presetThemeIds = Object.keys(SPY_THEMES);
+    const themeId = customWanted ? 'custom' : presetThemeIds[randomInt(presetThemeIds.length)];
     let mode = '';
     let word = '';
     let spyWord = '';
@@ -4035,7 +4041,7 @@
     spySync.code = code;
     spySync.mySlot = 0;
     spySync.conns = [];
-    spySync.config = { mode, word, spyWord, minutes: Number(spyMinutes.value) || 3, voice: spyVoiceToggle.checked, spyCount: spyTotal };
+    spySync.config = { mode, word, spyWord, minutes: Number(spyMinutes.value) || 3, voice: spyVoiceToggle.checked, spyCount: spyTotal, theme: themeId };
     spySync.players = Array.from({ length: count }, (_, index) => ({
       name: (solo ? (spySoloNamesDraft[index] || '').trim().slice(0, 14) : '') || `玩家 ${index + 1}`,
       isSpy: spySlots.has(index),
@@ -4675,6 +4681,12 @@
             ? '本局種類:相似詞(臥底拿到的是相似詞)'
             : '本局種類:亂入詞(臥底拿到的是完全無關的詞)';
         spyPhaseActions.appendChild(kind);
+        const themeLine = document.createElement('p');
+        themeLine.className = 'wolf-custom-summary';
+        themeLine.textContent = spySync.config.theme === 'custom'
+          ? '本局主題:自訂詞(主持人出題)'
+          : `本局主題:${(SPY_THEMES[spySync.config.theme] || {}).label || '未知'}(系統祕密決定)`;
+        spyPhaseActions.appendChild(themeLine);
       }
       spyNextButton.hidden = true;
       return;
@@ -4817,7 +4829,7 @@
       spyClientBody.appendChild(card);
       spyClientBody.appendChild(spyNameEditor());
       spyClientBody.appendChild(buildGameRules('誰是臥底怎麼玩?', [
-        '系統在後台祕密決定本局種類(相似詞或亂入詞)與誰是臥底,連臥底自己都不會被通知。',
+        '系統在後台祕密決定本局詞組主題、種類(相似詞或亂入詞)與誰是臥底,連臥底自己都不會被通知。',
         '大部分人是同一個詞(平民),少數人拿到另一個詞(臥底),輪流描述自己的詞、不能講關鍵字。',
         '發現自己的詞跟別人不一樣時,就要想辦法混過去;討論結束後手機投票抓臥底。',
         '投中是臥底 → 平民贏;沒抓到 → 臥底贏。揭曉時會公布種類與兩個詞。',
@@ -4914,8 +4926,8 @@
     spyClientBody.appendChild(fallback);
   }
 
-  spyTheme.addEventListener('change', () => {
-    spyCustom.hidden = spyTheme.value !== 'custom';
+  spyCustomToggle.addEventListener('change', () => {
+    spyCustom.hidden = !spyCustomToggle.checked;
   });
   spyCount.addEventListener('change', () => {
     if (!$('#spySoloNames').hidden) renderSpySoloNameList();
@@ -5018,7 +5030,7 @@
   }
 
   function oneSpeak(text) {
-    if (!oneSync.config || !oneSync.config.voice) return;
+    if (!globalVoice || !oneSync.config || !oneSync.config.voice) return;
     try {
       const synth = window.speechSynthesis;
       if (!synth) return;
@@ -6421,7 +6433,7 @@
   }
 
   function agentSpeak(text) {
-    if (!agentSync.config || !agentSync.config.voice) return;
+    if (!globalVoice || !agentSync.config || !agentSync.config.voice) return;
     try {
       const synth = window.speechSynthesis;
       if (!synth) return;
@@ -7370,6 +7382,9 @@
 
   agentTheme.addEventListener('change', () => {
     agentCustom.hidden = agentTheme.value !== 'custom';
+  });
+  agentVoiceSelect.addEventListener('change', () => {
+    if (agentSync.config) agentSync.config.voice = agentVoiceSelect.value !== '0';
   });
   $('#createAgentRoomButton').addEventListener('click', createAgentRoom);
   const agentSoloWanted = initSoloToggle('agentPlayMode', (solo) => {
@@ -10437,6 +10452,31 @@
   renderTexas();
   renderBlackjack();
   renderBaccarat();
+
+  // 全站語音導播總開關(所有遊戲都受它控制,設定會記在本機)
+  const voiceToggleButton = $('#voiceToggleButton');
+  const voiceToggleIcon = $('#voiceToggleIcon');
+  function renderVoiceToggleButton() {
+    voiceToggleIcon.textContent = globalVoice ? '🔊' : '🔇';
+    voiceToggleButton.classList.toggle('is-muted', !globalVoice);
+    voiceToggleButton.setAttribute('aria-label', globalVoice ? '關閉語音提示' : '開啟語音提示');
+    voiceToggleButton.title = globalVoice ? '語音導播:開' : '語音導播:關';
+  }
+  try {
+    globalVoice = localStorage.getItem(VOICE_STORAGE_KEY) !== '0';
+  } catch (error) {
+    globalVoice = true;
+  }
+  renderVoiceToggleButton();
+  voiceToggleButton.addEventListener('click', () => {
+    globalVoice = !globalVoice;
+    try { localStorage.setItem(VOICE_STORAGE_KEY, globalVoice ? '1' : '0'); } catch (error) { /* ignore */ }
+    if (!globalVoice) {
+      try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (error) { /* ignore */ }
+    }
+    renderVoiceToggleButton();
+    showToast(globalVoice ? '語音提示已開啟(所有遊戲)' : '語音提示已關閉(所有遊戲)');
+  });
 
   // Clear local data dialog
   const clearDataModal = $('#clearDataModal');

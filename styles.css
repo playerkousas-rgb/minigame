@@ -178,6 +178,17 @@ textarea:focus-visible,
   transform: rotate(-20deg);
 }
 
+.icon-button.is-muted {
+  color: var(--danger, #ff806f);
+  border-color: rgba(255, 128, 111, 0.55);
+}
+
+.icon-button.is-muted:hover {
+  color: var(--danger, #ff806f);
+  border-color: rgba(255, 128, 111, 0.75);
+  transform: none;
+}
+
 .welcome-block {
   position: relative;
   display: grid;
