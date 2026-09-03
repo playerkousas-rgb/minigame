@@ -3171,6 +3171,20 @@ textarea:focus-visible,
   background: rgba(0, 0, 0, 0.24);
 }
 
+.spy-solo-names {
+  margin-bottom: 14px;
+  padding: 12px;
+  border: 1px solid rgba(112, 198, 255, 0.28);
+  border-radius: 13px;
+  background: rgba(112, 198, 255, 0.05);
+}
+
+.spy-solo-name-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
 /* Collapsible how-to-play rules block (setup panels + client reveal screens). */
 .game-rules {
   margin: 2px 2px 14px;

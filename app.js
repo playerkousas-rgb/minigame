@@ -3880,10 +3880,6 @@
       places: ['醫院', '診所', '藥局', '健身房', '公園', '游泳池', '牙醫診所', '保健食品店'],
     },
   };
-  const SPY_MODE_PRESETS = [
-    { id: 'undercover', label: '版本 A · 誰是臥底', desc: '臥底拿到一個相似的詞,要想辦法隱藏自己' },
-    { id: 'spyfall', label: '版本 B · 間諜危機', desc: '平民共用同一詞,間諜不知道詞,只能靠問答找破綻' },
-  ];
   const spySync = {
     mode: 'local',      // 'local' | 'host' | 'client'
     solo: false,        // 離線單機：不連 PeerJS、不發 QR,輪流傳手機
@@ -3901,13 +3897,12 @@
     over: null,         // { camp: 'village'|'spy', votedSlot, counts }
     timerLeft: 0,
     timerInterval: null,
-    myWord: null,       // client only: my own word (null = spy without a word)
+    myWord: null,       // client only: my own word
   };
   const spySetupPanel = $('#spySetup');
   const spyHostPanel = $('#spyHost');
   const spyClientPanel = $('#spyClient');
   const spyBadge = $('#spyBadge');
-  const spyModeList = $('#spyModeList');
   const spyTheme = $('#spyTheme');
   const spyCount = $('#spyCount');
   const spySpies = $('#spySpies');
@@ -3928,13 +3923,39 @@
   const endSpyRoomButton = $('#endSpyRoomButton');
   const spyClientStatus = $('#spyClientStatus');
   const spyClientBody = $('#spyClientBody');
-  let spySelectedMode = 'undercover';
-  // 離線單機狀態:發詞進度與收票進度。
+  // 離線單機狀態:發詞進度、收票進度與預先填好的玩家名字。
   let spySoloDeal = { slot: 0, peeked: false };
   let spySoloVote = { idx: 0 };
+  let spySoloNamesDraft = [];
   function resetSpySoloState() {
     spySoloDeal = { slot: 0, peeked: false };
     spySoloVote = { idx: 0 };
+  }
+
+  // 離線單機:開局前把所有玩家的名字一次填好,傳手機時就不必再輸入。
+  function renderSpySoloNameList() {
+    const list = $('#spySoloNameList');
+    if (!list) return;
+    const count = clamp(Number(spyCount.value) || 6, 4, 12);
+    list.replaceChildren();
+    for (let index = 0; index < count; index += 1) {
+      const row = document.createElement('label');
+      row.className = 'participant-input-row';
+      const number = document.createElement('span');
+      number.className = 'participant-number';
+      number.textContent = pad(index + 1);
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.maxLength = 14;
+      input.className = 'spy-solo-name-input';
+      input.value = typeof spySoloNamesDraft[index] === 'string' ? spySoloNamesDraft[index] : '';
+      input.placeholder = `玩家 ${index + 1}`;
+      input.dataset.spyNameIndex = String(index);
+      input.setAttribute('aria-label', `第 ${index + 1} 位玩家名字`);
+      input.addEventListener('input', () => { spySoloNamesDraft[index] = input.value; });
+      row.append(number, input);
+      list.appendChild(row);
+    }
   }
 
   function spySpeak(text) {
@@ -3950,35 +3971,31 @@
     } catch (error) { /* voice is optional */ }
   }
 
-  function renderSpyModeList() {
-    spyModeList.replaceChildren();
-    SPY_MODE_PRESETS.forEach((preset, index) => {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'wolf-preset' + (index === 0 ? ' is-selected' : '');
-      button.dataset.spyMode = preset.id;
-      const title = document.createElement('strong');
-      title.textContent = preset.label;
-      const sub = document.createElement('span');
-      sub.textContent = preset.desc;
-      button.append(title, sub);
-      button.addEventListener('click', () => {
-        $$('.wolf-preset', spyModeList).forEach((el) => el.classList.remove('is-selected'));
-        button.classList.add('is-selected');
-        spySelectedMode = preset.id;
-      });
-      spyModeList.appendChild(button);
-    });
-  }
-
   function spyBuildSteps() {
     const minutes = Number(spySync.config.minutes) || 3;
     return [
-      { id: 'reveal', label: '發詞', title: '查看你的詞', hint: '每個人確認自己的詞或身份後按「看完了」。', secs: 0, voice: '每人查看自己手機上的詞,確認後按看完了。' },
+      { id: 'reveal', label: '發詞', title: '查看你的詞', hint: '每個人記住自己的詞後按「看完了」。', secs: 0, voice: '每人查看自己手機上的詞,記住後按看完了。' },
       { id: 'discuss', label: '討論', title: '討論時間', hint: '輪流描述自己的詞,找出破綻。', secs: minutes * 60, timer: true, voice: '討論開始,請用問題和描述找出臥底。' },
       { id: 'vote', label: '投票', title: '投票指認', hint: '投給你認為是臥底的人。', secs: 0, voice: '請投票,指認你認為是臥底的人。' },
       { id: 'result', label: '揭曉', title: '揭曉答案', hint: '', secs: 0, voice: '揭曉答案。' },
     ];
+  }
+
+  // 從全部主題的詞裡挑一個跟平民詞無關的詞,給「亂入詞」型的臥底用。
+  function spyRandomForeignWord(word) {
+    const allWords = [];
+    const banned = new Set([word]);
+    Object.keys(SPY_THEMES).forEach((themeId) => {
+      (SPY_THEMES[themeId].pairs || []).forEach((pair) => {
+        pair.forEach((entry) => {
+          if (typeof entry === 'string' && entry) allWords.push(entry);
+        });
+        if (pair.includes(word)) pair.forEach((entry) => banned.add(entry));
+      });
+    });
+    const pool = allWords.filter((entry) => !banned.has(entry));
+    if (!pool.length) return allWords.find((entry) => entry !== word) || word;
+    return pool[randomInt(pool.length)];
   }
 
   function createSpyRoom() {
@@ -3988,27 +4005,27 @@
       showToast('連線程式未載入,請確認網路後重整');
       return;
     }
-    const mode = spySelectedMode;
     const count = clamp(Number(spyCount.value) || 6, 4, 12);
     const spyTotal = clamp(Number(spySpies.value) || 1, 1, 2);
     if (spyTotal >= count) { showToast('臥底人數要比玩家人數少'); return; }
     const themeId = spyTheme.value;
+    let mode = '';
     let word = '';
     let spyWord = '';
     if (themeId === 'custom') {
+      mode = 'custom';
       word = spyCustomWord.value.trim().slice(0, 12);
       if (!word) { showToast('請輸入平民詞'); return; }
       spyWord = spyCustomSpyWord.value.trim().slice(0, 12);
+      if (!spyWord) spyWord = spyRandomForeignWord(word);
     } else {
       const theme = SPY_THEMES[themeId] || SPY_THEMES.party;
-      if (mode === 'undercover') {
-        const pick = theme.pairs[randomInt(theme.pairs.length)];
-        word = pick[0];
-        spyWord = pick[1];
-      } else {
-        word = theme.places[randomInt(theme.places.length)];
-        spyWord = '';
-      }
+      // 種類由系統在後台隨機決定,不對任何人透露:
+      // 'undercover' = 臥底拿到相似詞;'spyfall' = 臥底拿到完全無關的亂入詞。
+      mode = Math.random() < 0.6 ? 'undercover' : 'spyfall';
+      const pick = theme.pairs[randomInt(theme.pairs.length)];
+      word = pick[0];
+      spyWord = mode === 'undercover' ? pick[1] : spyRandomForeignWord(word);
     }
     const code = makeRoomCode();
     const spySlots = new Set();
@@ -4020,7 +4037,7 @@
     spySync.conns = [];
     spySync.config = { mode, word, spyWord, minutes: Number(spyMinutes.value) || 3, voice: spyVoiceToggle.checked, spyCount: spyTotal };
     spySync.players = Array.from({ length: count }, (_, index) => ({
-      name: `玩家 ${index + 1}`,
+      name: (solo ? (spySoloNamesDraft[index] || '').trim().slice(0, 14) : '') || `玩家 ${index + 1}`,
       isSpy: spySlots.has(index),
       joined: solo || index === 0,
       ready: false,
@@ -4267,17 +4284,13 @@
     spySync.conns.forEach(({ conn, slot }) => {
       const me = spySync.players[slot] || {};
       const myCopy = JSON.parse(JSON.stringify(payload));
-      // Spy status is secret: only your own is visible.
+      // Spy status is secret: only your own is visible (and never announced).
       myCopy.players = myCopy.players.map((player, index) => (
         index === slot ? player : { ...player, isSpy: null }
       ));
-      // Your own word only (spies in spyfall mode have no word).
+      // Your own word only: everyone (including the spy) just gets a word.
       if (spySync.config) {
-        if (spySync.config.mode === 'undercover') {
-          myCopy.myWord = me.isSpy ? spySync.config.spyWord : spySync.config.word;
-        } else {
-          myCopy.myWord = me.isSpy ? null : spySync.config.word;
-        }
+        myCopy.myWord = me.isSpy ? (spySync.config.spyWord || spySync.config.word) : spySync.config.word;
       }
       try { conn.send(myCopy); } catch (error) { /* ignore */ }
     });
@@ -4344,7 +4357,7 @@
   function spySoloStepCopy(step) {
     if (!spySync.solo || !step) return null;
     if (step.id === 'reveal') {
-      return { title: '傳手機發詞', hint: '把手機輪流傳給每位玩家:看自己的詞、順手改顯示名稱,蓋牌後傳下一位。' };
+      return { title: '傳手機發詞', hint: '把手機輪流傳給每位玩家:看自己的詞、記住,蓋牌後傳下一位。' };
     }
     if (step.id === 'vote') {
       return { title: '投票 · 主持人代投', hint: '輪到的玩家用手指比人,主持人點黑卡收票;收齊後自動揭曉。' };
@@ -4479,23 +4492,12 @@
     const word = document.createElement('strong');
     const sub = document.createElement('p');
     sub.className = 'role-desc';
-    const isSpy = player.isSpy === true;
-    if (spySync.config.mode === 'undercover') {
-      label.textContent = isSpy ? `${player.name} · 你的詞（臥底）` : `${player.name} · 你的詞`;
-      word.textContent = isSpy ? spySync.config.spyWord : spySync.config.word;
-      sub.textContent = isSpy ? '你的詞和別人不一樣,描述時不要露餡!' : '大家說的都是這個詞,描述時不要講出關鍵字。';
-    } else if (isSpy) {
-      label.textContent = `${player.name} · 你的身份`;
-      word.textContent = '🕵️ 間諜';
-      sub.textContent = '你不知道詞是什麼。想辦法從大家的描述中猜出詞,別被發現!';
-    } else {
-      label.textContent = `${player.name} · 你的詞`;
-      word.textContent = spySync.config.word;
-      sub.textContent = '大家說的都是這個詞,描述時不要講出關鍵字。';
-    }
+    // 每個人都只看到自己的詞,臥底不會被標示、也不會被通知。
+    label.textContent = `${player.name} · 你的詞`;
+    word.textContent = player.isSpy === true ? spySync.config.spyWord : spySync.config.word;
+    sub.textContent = '記住你的詞,討論時不要直接講出關鍵字。';
     card.append(label, word, sub);
     spyPhaseActions.appendChild(card);
-    spyPhaseActions.appendChild(soloNameEditor(player, dealt, () => { broadcastSpyState(); }));
     const action = document.createElement('div');
     action.className = 'wolf-action';
     const done = document.createElement('button');
@@ -4567,6 +4569,81 @@
     return false;
   }
 
+  // 線上模式的主持人也是玩家:看詞與投票和大家一樣,但同樣不會被告知是否為臥底。
+  function spyHostWordUI() {
+    const me = spySync.players[0];
+    if (!me) return;
+    const card = document.createElement('div');
+    card.className = 'game-word-card';
+    const label = document.createElement('span');
+    label.className = 'wolf-phase-label';
+    label.textContent = '你的詞';
+    const word = document.createElement('strong');
+    word.textContent = me.isSpy === true ? spySync.config.spyWord : spySync.config.word;
+    const sub = document.createElement('p');
+    sub.className = 'role-desc';
+    sub.textContent = '記住你的詞,討論時不要直接講出關鍵字。';
+    card.append(label, word, sub);
+    spyPhaseActions.appendChild(card);
+    const action = document.createElement('div');
+    action.className = 'wolf-action';
+    const done = document.createElement('button');
+    done.className = 'button button-primary button-large';
+    done.type = 'button';
+    if (me.ready) {
+      done.textContent = '已確認 ✅';
+      done.disabled = true;
+    } else {
+      done.innerHTML = '記住了,蓋牌 <span>▣</span>';
+      done.addEventListener('click', () => {
+        me.ready = true;
+        renderSpyPhaseActions();
+        renderSpyRoster();
+      });
+    }
+    action.appendChild(done);
+    spyPhaseActions.appendChild(action);
+  }
+
+  function spyHostVoteUI() {
+    const wrap = document.createElement('div');
+    wrap.className = 'wolf-action';
+    const heading = document.createElement('h5');
+    heading.textContent = '你的這一票:誰是臥底?';
+    wrap.appendChild(heading);
+    spyPhaseActions.appendChild(wrap);
+    const list = document.createElement('div');
+    list.className = 'wolf-target-list';
+    spySync.players.forEach((player, index) => {
+      if (index === 0) return;
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'wolf-target' + (spySync.votes[0] === index ? ' is-selected' : '');
+      const rank = document.createElement('span');
+      rank.className = 'wolf-target-rank';
+      rank.textContent = pad(index + 1);
+      const name = document.createElement('span');
+      name.className = 'wolf-target-name';
+      name.textContent = player.name;
+      button.append(rank, name);
+      button.addEventListener('click', () => {
+        spySync.votes[0] = index;
+        spySync.players[0].voted = true;
+        renderSpyPhaseActions();
+        renderSpyRoster();
+      });
+      list.appendChild(button);
+    });
+    const abstain = wolfOptionButton('棄權', () => {
+      spySync.votes[0] = null;
+      spySync.players[0].voted = true;
+      renderSpyPhaseActions();
+      renderSpyRoster();
+    }, spySync.votes[0] === null);
+    list.appendChild(abstain);
+    spyPhaseActions.appendChild(list);
+  }
+
   function renderSpyPhaseActions() {
     spyPhaseActions.replaceChildren();
     const step = spySync.steps[spySync.stepIndex] || null;
@@ -4588,10 +4665,16 @@
       if (spySync.config) {
         const words = document.createElement('p');
         words.className = 'wolf-custom-summary';
-        words.textContent = spySync.config.mode === 'undercover'
-          ? `平民詞「${spySync.config.word}」 / 臥底詞「${spySync.config.spyWord}」`
-          : `地點「${spySync.config.word}」 / 間諜不知道詞`;
+        words.textContent = `平民詞「${spySync.config.word}」 / 臥底詞「${spySync.config.spyWord}」`;
         spyPhaseActions.appendChild(words);
+        const kind = document.createElement('p');
+        kind.className = 'wolf-custom-summary';
+        kind.textContent = spySync.config.mode === 'custom'
+          ? '本局種類:自訂詞(主持人設定的詞)'
+          : spySync.config.mode === 'undercover'
+            ? '本局種類:相似詞(臥底拿到的是相似詞)'
+            : '本局種類:亂入詞(臥底拿到的是完全無關的詞)';
+        spyPhaseActions.appendChild(kind);
       }
       spyNextButton.hidden = true;
       return;
@@ -4605,6 +4688,7 @@
         note.className = 'wolf-custom-summary';
         note.textContent = `已投票 ${voted}/${spySync.players.length} 人。`;
         spyPhaseActions.appendChild(note);
+        spyHostVoteUI();
       }
     } else if (step.id === 'reveal') {
       if (solo) {
@@ -4616,6 +4700,14 @@
         note.className = 'wolf-custom-summary';
         note.textContent = `已確認 ${confirmed}/${spySync.players.length} 人。`;
         spyPhaseActions.appendChild(note);
+        spyHostWordUI();
+      }
+    }
+    if (step.id === 'discuss' && !solo) {
+      const me = spySync.players[0];
+      if (me) {
+        const word = me.isSpy === true ? spySync.config.spyWord : spySync.config.word;
+        spyPhaseActions.appendChild(spyWordCard(word));
       }
     }
     spyNextButton.hidden = hideNext;
@@ -4651,19 +4743,14 @@
     return wrap;
   }
 
-  function spyWordCard() {
+  function spyWordCard(myWord = spySync.myWord) {
     const card = document.createElement('div');
     card.className = 'game-word-card is-hidden';
     const label = document.createElement('span');
     label.className = 'wolf-phase-label';
     const word = document.createElement('strong');
-    if (spySync.myWord) {
-      label.textContent = '點一下偷看你的詞';
-      word.textContent = spySync.myWord;
-    } else {
-      label.textContent = '點一下查看身份';
-      word.textContent = '🕵️ 間諜';
-    }
+    label.textContent = '點一下偷看你的詞';
+    word.textContent = myWord || '…';
     card.append(label, word);
     card.addEventListener('click', () => card.classList.toggle('is-hidden'));
     return card;
@@ -4719,29 +4806,21 @@
       card.className = 'game-word-card';
       const label = document.createElement('span');
       label.className = 'wolf-phase-label';
-      if (isSpy && !spySync.myWord) {
-        label.textContent = '你的身份';
-        const word = document.createElement('strong');
-        word.textContent = '🕵️ 間諜';
-        const sub = document.createElement('p');
-        sub.className = 'role-desc';
-        sub.textContent = '你不知道詞是什麼。想辦法從大家的描述中猜出詞,別被發現!';
-        card.append(label, word, sub);
-      } else {
-        label.textContent = isSpy ? '你的詞（臥底）' : '你的詞';
-        const word = document.createElement('strong');
-        word.textContent = spySync.myWord || '…';
-        const sub = document.createElement('p');
-        sub.className = 'role-desc';
-        sub.textContent = isSpy ? '你的詞和別人不一樣,描述時不要露餡!' : '大家說的都是這個詞,描述時不要講出關鍵字。';
-        card.append(label, word, sub);
-      }
+      // 每個人都只看到自己的詞;臥底不會被標示,也不會被通知。
+      label.textContent = '你的詞';
+      const word = document.createElement('strong');
+      word.textContent = spySync.myWord || '…';
+      const sub = document.createElement('p');
+      sub.className = 'role-desc';
+      sub.textContent = '記住你的詞,討論時不要直接講出關鍵字。';
+      card.append(label, word, sub);
       spyClientBody.appendChild(card);
       spyClientBody.appendChild(spyNameEditor());
       spyClientBody.appendChild(buildGameRules('誰是臥底怎麼玩?', [
-        '大部分人是同一個詞(平民),少數人拿到相似詞(臥底),輪流描述自己的詞、不能講關鍵字。',
-        '討論結束後手機投票抓臥底:投中是臥底 → 平民贏;沒抓到 → 臥底贏。',
-        '「間諜危機」版:平民共用地點詞,間諜不知道詞,靠問答找破綻。',
+        '系統在後台祕密決定本局種類(相似詞或亂入詞)與誰是臥底,連臥底自己都不會被通知。',
+        '大部分人是同一個詞(平民),少數人拿到另一個詞(臥底),輪流描述自己的詞、不能講關鍵字。',
+        '發現自己的詞跟別人不一樣時,就要想辦法混過去;討論結束後手機投票抓臥底。',
+        '投中是臥底 → 平民贏;沒抓到 → 臥底贏。揭曉時會公布種類與兩個詞。',
       ]));
       const action = document.createElement('div');
       action.className = 'wolf-action';
@@ -4838,11 +4917,16 @@
   spyTheme.addEventListener('change', () => {
     spyCustom.hidden = spyTheme.value !== 'custom';
   });
+  spyCount.addEventListener('change', () => {
+    if (!$('#spySoloNames').hidden) renderSpySoloNameList();
+  });
   $('#createSpyRoomButton').addEventListener('click', createSpyRoom);
   const spySoloWanted = initSoloToggle('spyPlayMode', (solo) => {
     $('#createSpyRoomButton').innerHTML = solo ? '開始離線單機局 <span>📴</span>' : '建立誰是臥底房間 <span>↗</span>';
     $('#spyOnlineCopy').hidden = solo;
     $('#spySoloCopy').hidden = !solo;
+    $('#spySoloNames').hidden = !solo;
+    if (solo) renderSpySoloNameList();
   });
   endSpyRoomButton.addEventListener('click', () => {
     resetSpySync();
@@ -4857,7 +4941,7 @@
     if (!step || step.id === 'result') return;
     spyAdvance();
   });
-  renderSpyModeList();
+  renderSpySoloNameList();
   spySetMode('local');
 
   // ===== 一夜狼人 (one-night werewolf: role swaps + vote, host + clients via PeerJS) =====
