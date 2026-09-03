@@ -25,6 +25,9 @@
             <span class="status-dot" aria-hidden="true"></span>
             <span id="connectionText">離線可用</span>
           </span>
+          <button class="icon-button" id="voiceToggleButton" type="button" aria-label="關閉語音提示" title="語音導播:開">
+            <span aria-hidden="true" id="voiceToggleIcon">🔊</span>
+          </button>
           <button class="icon-button" id="clearDataButton" type="button" aria-label="清除本機資料" title="清除本機資料">
             <span aria-hidden="true">↺</span>
           </button>
@@ -797,9 +800,9 @@
             <div>
               <p class="section-kicker">WHO'S THE SPY</p>
               <h2>誰是臥底 / 間諜危機</h2>
-              <p>一人一機秘密發詞。大家輪流描述自己的詞,臥底要藏好自己;投票、揭曉,抓出內鬼。</p>
+              <p>一人一機秘密發詞。每個人只看到自己的詞——連臥底自己都不知道自己是臥底;詞組主題也由系統隨機祕密決定,輪流描述、投票、揭曉,抓出內鬼。</p>
             </div>
-            <div class="tool-count-badge"><span>2</span><small>種玩法</small></div>
+            <div class="tool-count-badge"><span>3</span><small>種玩法</small></div>
           </div>
 
           <!-- Setup -->
@@ -811,28 +814,13 @@
                 <h4>建立誰是臥底房間</h4>
               </div>
             </div>
-            <p class="sync-copy" id="spyOnlineCopy">選好<strong>玩法</strong>與<strong>主題</strong>後建立房間,<strong>每人掃自己的 QR</strong> 就會在手機上收到秘密詞;這部裝置是主持人。</p>
-            <p class="sync-copy" id="spySoloCopy" hidden><strong>離線單機</strong>:不需網路、不掃 QR。建立後<strong>輪流傳手機</strong>看自己的詞;討論計時照常,投票由玩家比手勢、主持人點黑卡收票,自動揭曉。全場只要這一台手機。</p>
-            <div class="wolf-step"><span class="wolf-step-no">STEP 1</span><strong>選擇玩法</strong><small>兩種版本 · 不同規則</small></div>
-            <div class="wolf-preset-list" id="spyModeList" role="group" aria-label="玩法選擇"></div>
+            <p class="sync-copy" id="spyOnlineCopy">選好<strong>玩法</strong>後建立房間;除自訂詞組外,<strong>詞組主題與誰是臥底都由系統在後台祕密決定</strong>。<strong>每人掃自己的 QR</strong> 就會在手機上收到秘密詞,這部裝置是主持人。臥底自己也不會被告知。</p>
+            <p class="sync-copy" id="spySoloCopy" hidden><strong>離線單機</strong>:不需網路、不掃 QR。建立前先把<strong>所有人的名字一次填好</strong>、選好玩法,之後輪流傳手機看自己的詞即可(傳手機時不用再輸入名字);詞組主題同樣由系統祕密決定,討論計時照常,投票由玩家比手勢、主持人點黑卡收票,自動揭曉。全場只要這一台手機。</p>
+            <div id="spyModeChoice">
+              <div class="wolf-step"><span class="wolf-step-no">STEP 1</span><strong>選擇玩法</strong><small>三種版本 · 不同規則</small></div>
+              <div class="wolf-preset-list" id="spyModeList" role="group" aria-label="玩法選擇"></div>
+            </div>
             <div class="spy-settings">
-              <label class="spy-field">主題
-                <select id="spyTheme">
-                  <option value="party">派對</option>
-                  <option value="food">飲食</option>
-                  <option value="life">生活</option>
-                  <option value="work">職場</option>
-                  <option value="travel">旅遊</option>
-                  <option value="tech">科技生活</option>
-                  <option value="people">人物身份</option>
-                  <option value="animal">動物</option>
-                  <option value="entertain">娛樂影視</option>
-                  <option value="nature">自然天氣</option>
-                  <option value="school">學校</option>
-                  <option value="health">健康</option>
-                  <option value="custom">自訂</option>
-                </select>
-              </label>
               <label class="spy-field">玩家人數
                 <select id="spyCount">
                   <option>4</option><option>5</option><option selected>6</option><option>7</option><option>8</option><option>9</option><option>10</option><option>11</option><option>12</option>
@@ -845,20 +833,29 @@
                 <select id="spyMinutes"><option value="2">2 分鐘</option><option value="3" selected>3 分鐘</option><option value="5">5 分鐘</option></select>
               </label>
             </div>
+            <div class="spy-solo-names" id="spySoloNames" hidden>
+              <div class="wolf-step"><span class="wolf-step-no">STEP 2</span><strong>輸入大家的名字</strong><small>離線傳手機時直接看詞,不必再輸入</small></div>
+              <div class="spy-solo-name-list" id="spySoloNameList"></div>
+            </div>
+            <label class="wolf-voice-row">
+              <input type="checkbox" id="spyCustomToggle" /> 自訂詞組(自己出題,不勾選時詞組主題由系統隨機祕密決定)
+            </label>
             <div class="spy-custom" id="spyCustom" hidden>
               <input id="spyCustomWord" type="text" maxlength="12" autocomplete="off" placeholder="平民詞(大家都會看到這個詞)" />
-              <input id="spyCustomSpyWord" type="text" maxlength="12" autocomplete="off" placeholder="臥底詞(留空 = 臥底不知道詞)" />
+              <input id="spyCustomSpyWord" type="text" maxlength="12" autocomplete="off" placeholder="臥底詞(留空 = 系統自動配一個無關詞)" />
             </div>
             <div class="wolf-voice-row">
               <label><input type="checkbox" id="spyVoiceToggle" checked /> 語音導播(用語音唸出每一步流程)</label>
             </div>
             <details class="game-rules">
               <summary>📖 誰是臥底怎麼玩?</summary>
-              <p>每人手機收到一個秘密詞,大部分人是同一個詞(平民),少數人拿到相似詞(臥底)。</p>
-              <p>大家輪流描述自己的詞,不能直接講出關鍵字;臥底要想辦法說得差不多,又不被發現。</p>
+              <p>玩法三選一:<strong>版本 A 相似詞</strong>(臥底拿到近義詞)、<strong>版本 B 亂入詞</strong>(臥底拿到無關詞)、<strong>版本 C 隨機</strong>(系統後台抽,揭曉才公布)。</p>
+              <p>詞組主題由系統在後台祕密決定;誰是臥底不對任何人透露——<strong>連臥底自己都不知道自己是臥底</strong>。</p>
+              <p>每人手機只收到一個詞:大部分人是同一個詞(平民),少數人拿到另一個詞(臥底)。</p>
+              <p>大家輪流描述自己的詞,不能直接講出關鍵字;發現自己的詞跟別人不一樣時,就要想辦法混過去。</p>
               <p>討論結束後,每人手機投票,投出你認為是臥底的人。</p>
               <p>勝利:被投出的是臥底 → 平民贏;沒抓到(或抓到平民)→ 臥底贏。</p>
-              <p>「間諜危機」版本:平民共用一個地點詞,間諜不知道詞,只能靠問答找破綻。</p>
+              <p>揭曉時會公布本局種類、平民詞、臥底詞與誰是臥底。</p>
             </details>
             <div class="solo-mode-row" id="spyPlayMode" role="group" aria-label="連線方式">
               <button type="button" class="solo-mode-option is-selected" data-playmode="online"><strong>📱 掃 QR 連線</strong><small>每人一機 · 需網路</small></button>
