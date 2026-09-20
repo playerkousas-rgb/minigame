@@ -63,3 +63,35 @@ Service Worker 需要透過 `http://` 或 `https://` 載入；直接雙擊 `inde
 **機密特務離線版**：傳手機看隊伍時，隊長會看到完整答案卡（記好後蓋牌）；遊戲中隨時可點「🔴／🔵 隊長看答案卡」攤開給隊長偷看，隊員喊詞後主持人直接點棋盤代翻。
 
 離線單機與掃 QR 連線可在建立前自由切換；多人連線（PeerJS + QR）功能不變。
+
+## 專案瘦身與防增肥維護規範（Vercel 部署守則）
+
+為避免 Vercel 部署儲存空間配額爆滿或隨改版逐漸臃腫，請嚴格遵守以下「極致防增肥」原則：
+
+1. **零死重與孤立資產控管**：
+   - 新增靜態資產（圖檔、音效等）前，必須確認已在代碼或 HTML/CSS 中引用。
+   - 避免引入未經壓縮的大型點陣圖檔（PNG/JPG），優先採用向量 SVG、CSS 純代碼繪製或系統 Emoji。
+   - 定期檢查並清除未引用的孤立檔案、原稿設計圖與截圖。
+
+2. **禁止遺留備份與暫存檔**：
+   - 本地開發時嚴禁將 `*.bak`、`*.tmp`、`*.old`、`*.swp` 或編輯器暫存檔提交入版本庫。
+   - 根目錄已配置嚴格的 `.gitignore` 與 `.vercelignore`，禁止忽略規則失效。
+
+3. **極簡依賴原則（Zero / Minimal Dependencies）**：
+   - 本專案核心設計為零依賴純前端靜態 Web App。
+   - 嚴禁隨意在 `package.json` 的 `dependencies` 加入肥大套件。
+   - 若未來引入建置工具（如 Vite、Tailwind CLI），必須**一律放入 `devDependencies`**，確保生產部署不會上傳或快取龐大的 Node 執行期依賴。
+
+4. **Vercel 部署過濾機制**：
+   - 依賴根目錄的 `.vercelignore` 精確過濾 `.git/`、測試代碼（`_qa/`、`tests/`）、暫存檔、說明文檔與日誌，防止建置快取與部署配額溢出。
+   - 部署時依據 `vercel.json` 進行快取與標頭優化（如 Service Worker `must-revalidate`、`vendor` 庫長效快取 `max-age=31536000, immutable`）。
+
+5. **版本驗證與防退化檢查**：
+   - 每次改版與交付前，必須執行以下指令進行語法與無依賴驗證：
+     ```bash
+     npm run check
+     npm run lint
+     npm run build
+     ```
+   - 嚴格確保既有功能、邏輯、離線 PWA、PeerJS 多人連線與各款遊戲 100% 正常運作。
+

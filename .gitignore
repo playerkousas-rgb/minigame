@@ -2,3 +2,14 @@ node_modules/
 _qa/
 *.log
 .DS_Store
+*.bak
+*.tmp
+*.old
+*.swp
+Thumbs.db
+.cache/
+coverage/
+uploads/
+tmp/
+temp/
+.vercel/

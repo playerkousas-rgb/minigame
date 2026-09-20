@@ -1,0 +1,29 @@
+# Vercel 部署忽略規則（防儲存空間爆滿與死重上傳）
+.git
+.github
+.gitignore
+.vercel
+node_modules
+*.log
+*.bak
+*.tmp
+*.old
+*.swp
+*.DS_Store
+Thumbs.db
+
+# 測試、開發與本地環境
+_qa/
+tests/
+test/
+coverage/
+uploads/
+tmp/
+temp/
+.cache
+.env
+.env.*
+
+# 文檔與說明（靜態運行不需上傳）
+*.md
+LICENSE
