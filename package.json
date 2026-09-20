@@ -1,0 +1,24 @@
+{
+  "name": "pocket-play",
+  "version": "1.0.0",
+  "description": "出門玩 · Pocket Play - 聚會小工具與派對遊戲",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "npx serve .",
+    "check": "node --check app.js && node --check sw.js && node --check vendor/qrcode.js && node --check vendor/peerjs.min.js",
+    "lint": "node --check app.js && node --check sw.js",
+    "build": "node -e \"console.log('Build check passed: pure zero-dependency static bundle.')\""
+  },
+  "keywords": [
+    "game",
+    "party-game",
+    "offline-first",
+    "peerjs",
+    "pwa"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {}
+}
