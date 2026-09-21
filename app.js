@@ -3,6 +3,9 @@
 
   const STORAGE_KEY = 'pocket-play-state-v1';
   const VOICE_STORAGE_KEY = 'pocket-play-voice-v1';
+  const VOICE_LANGUAGE_STORAGE_KEY = 'pocket-play-voice-language-v1';
+  // 語音導播預設使用廣東話；實際聲音取決於裝置/瀏覽器已安裝的 Web Speech 語音。
+  let speechLanguage = 'yue-HK';
   // 全站語音導播總開關:所有遊戲的語音提示都受它控制(各遊戲內還有自己的開關)。
   let globalVoice = true;
   const MAX_WHEEL_OPTIONS = 12;
@@ -43,6 +46,44 @@
   const randomInt = (max) => Math.floor(Math.random() * max);
   const pad = (value) => String(value).padStart(2, '0');
   const mod = (value, divisor) => ((value % divisor) + divisor) % divisor;
+
+  function isCantoneseSpeechVoice(voice) {
+    const lang = String(voice && voice.lang || '').toLowerCase().replace(/_/g, '-');
+    const name = String(voice && voice.name || '').toLowerCase();
+    return lang === 'yue' || lang.startsWith('yue-')
+      || lang === 'zh-hk' || lang.startsWith('zh-hk-')
+      || lang === 'zh-mo' || lang.startsWith('zh-mo-')
+      || /cantonese|廣東話|粵語|香港|hong kong/.test(name);
+  }
+
+  function findSpeechVoice(voices, language) {
+    if (language === 'yue-HK') {
+      return voices.find((voice) => /^yue-hk$/i.test(String(voice.lang || '').replace(/_/g, '-')))
+        || voices.find((voice) => /^yue(?:-|$)/i.test(String(voice.lang || '').replace(/_/g, '-')))
+        || voices.find(isCantoneseSpeechVoice);
+    }
+    return voices.find((voice) => /^zh-tw(?:-|$)/i.test(String(voice.lang || '').replace(/_/g, '-')))
+      || voices.find((voice) => /^zh-(?:cn|sg)(?:-|$)/i.test(String(voice.lang || '').replace(/_/g, '-')))
+      || voices.find((voice) => /^zh(?:-|$)/i.test(String(voice.lang || '').replace(/_/g, '-')));
+  }
+
+  function speakAppVoice(text) {
+    if (!text) return;
+    try {
+      const synth = window.speechSynthesis;
+      if (!synth) return;
+      synth.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      const voice = findSpeechVoice(synth.getVoices(), speechLanguage);
+      // zh-HK is more widely recognised than yue-HK by older browsers. If a
+      // Cantonese voice is installed, assigning it explicitly is what prevents
+      // the browser from silently picking the default Mandarin voice.
+      utterance.lang = voice ? voice.lang : (speechLanguage === 'yue-HK' ? 'zh-HK' : 'zh-TW');
+      if (voice) utterance.voice = voice;
+      utterance.rate = 0.95;
+      synth.speak(utterance);
+    } catch (error) { /* voice is optional */ }
+  }
 
   const defaultState = () => ({
     dice: {
@@ -2031,15 +2072,7 @@
 
   function wolfSpeak(text) {
     if (!globalVoice || !wolfSync.config || !wolfSync.config.voice) return;
-    try {
-      const synth = window.speechSynthesis;
-      if (!synth) return;
-      synth.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'zh-TW';
-      utterance.rate = 0.95;
-      synth.speak(utterance);
-    } catch (error) { /* voice is optional */ }
+    speakAppVoice(text);
   }
 
   // ---- Setup UI ----
@@ -3974,15 +4007,7 @@
 
   function spySpeak(text) {
     if (!globalVoice || !spySync.config || !spySync.config.voice) return;
-    try {
-      const synth = window.speechSynthesis;
-      if (!synth) return;
-      synth.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'zh-TW';
-      utterance.rate = 0.95;
-      synth.speak(utterance);
-    } catch (error) { /* voice is optional */ }
+    speakAppVoice(text);
   }
 
   function spyBuildSteps() {
@@ -5065,15 +5090,7 @@
 
   function oneSpeak(text) {
     if (!globalVoice || !oneSync.config || !oneSync.config.voice) return;
-    try {
-      const synth = window.speechSynthesis;
-      if (!synth) return;
-      synth.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'zh-TW';
-      utterance.rate = 0.95;
-      synth.speak(utterance);
-    } catch (error) { /* voice is optional */ }
+    speakAppVoice(text);
   }
 
   function renderOnePresets() {
@@ -6468,15 +6485,7 @@
 
   function agentSpeak(text) {
     if (!globalVoice || !agentSync.config || !agentSync.config.voice) return;
-    try {
-      const synth = window.speechSynthesis;
-      if (!synth) return;
-      synth.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'zh-TW';
-      utterance.rate = 0.95;
-      synth.speak(utterance);
-    } catch (error) { /* voice is optional */ }
+    speakAppVoice(text);
   }
 
   function agentColorAt(index) {
@@ -10487,7 +10496,37 @@
   renderBlackjack();
   renderBaccarat();
 
-  // 全站語音導播總開關(所有遊戲都受它控制,設定會記在本機)
+  // 全站語音導播設定(所有遊戲都受它控制,設定會記在本機)
+  const voiceLanguageSelect = $('#voiceLanguageSelect');
+  const voiceLanguageControl = voiceLanguageSelect ? voiceLanguageSelect.closest('.voice-language-control') : null;
+  function renderVoiceLanguageControl() {
+    if (!voiceLanguageControl || !window.speechSynthesis) return;
+    const hasMatchingVoice = Boolean(findSpeechVoice(window.speechSynthesis.getVoices(), speechLanguage));
+    const languageName = speechLanguage === 'yue-HK' ? '廣東話' : '普通話';
+    voiceLanguageControl.title = hasMatchingVoice
+      ? `語音導播：${languageName}`
+      : `此裝置未提供${languageName}語音，瀏覽器會使用語言備用聲音`;
+    voiceLanguageControl.dataset.voiceAvailable = hasMatchingVoice ? 'true' : 'false';
+  }
+  try {
+    const savedLanguage = localStorage.getItem(VOICE_LANGUAGE_STORAGE_KEY);
+    if (savedLanguage === 'yue-HK' || savedLanguage === 'zh-TW') speechLanguage = savedLanguage;
+  } catch (error) { /* use Cantonese default */ }
+  if (voiceLanguageSelect) {
+    voiceLanguageSelect.value = speechLanguage;
+    voiceLanguageSelect.addEventListener('change', () => {
+      speechLanguage = voiceLanguageSelect.value === 'zh-TW' ? 'zh-TW' : 'yue-HK';
+      try { localStorage.setItem(VOICE_LANGUAGE_STORAGE_KEY, speechLanguage); } catch (error) { /* ignore */ }
+      try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (error) { /* ignore */ }
+      renderVoiceLanguageControl();
+      showToast(`語音導播已切換為${speechLanguage === 'yue-HK' ? '廣東話' : '普通話'}`);
+    });
+  }
+  if (window.speechSynthesis) {
+    window.speechSynthesis.addEventListener('voiceschanged', renderVoiceLanguageControl);
+  }
+  renderVoiceLanguageControl();
+
   const voiceToggleButton = $('#voiceToggleButton');
   const voiceToggleIcon = $('#voiceToggleIcon');
   function renderVoiceToggleButton() {
