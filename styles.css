@@ -130,6 +130,35 @@ textarea:focus-visible,
   gap: 12px;
 }
 
+.voice-language-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 34px;
+  padding: 0 8px;
+  color: var(--paper-muted);
+  font-size: 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.voice-language-control select {
+  max-width: 82px;
+  padding: 3px 14px 3px 0;
+  color: var(--paper);
+  font-size: 12px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+}
+
+.voice-language-control select:focus-visible {
+  outline: 2px solid var(--lime);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
 .status-badge {
   display: inline-flex;
   align-items: center;
@@ -4750,6 +4779,18 @@ button.agent-word:not(:disabled):hover {
     min-height: 27px;
     padding: 0 8px;
     font-size: 9px;
+  }
+
+  .voice-language-control {
+    min-height: 31px;
+    padding: 0 6px;
+    gap: 3px;
+  }
+
+  .voice-language-control select {
+    max-width: 68px;
+    padding-right: 10px;
+    font-size: 11px;
   }
 
   .icon-button {
