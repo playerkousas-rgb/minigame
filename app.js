@@ -1,8 +1,16 @@
-import { inject } from '@vercel/analytics';
-inject();
-
+// 出門玩 · Pocket Play — app shell
+// 這是一支「傳統 script」（index.html 用 <script defer> 載入），不是 ES module：
+// 任何 top-level import/export 都會令整個檔案在瀏覽器直接 SyntaxError、全 App 停擺。
+// 若日後真的要改用 ESM，必須同步把 index.html 改成 <script type="module">，
+// 並讓 tools/verify.mjs 的 module 檢查通過。Vercel Web Analytics 改用 <head> 的
+// 靜態 snippet（/_vercel/insights/script.js），不經 npm 套件。
 (() => {
   'use strict';
+
+  const APP_VERSION = '1.1.0';
+  // 版本號同時出現於 package.json、index.html 的 meta[name=app-version] 與頁尾；
+  // tools/verify.mjs 會對照這三處，避免「改了程式沒改版號」。
+  document.documentElement.dataset.appVersion = APP_VERSION;
 
   const STORAGE_KEY = 'pocket-play-state-v1';
   const VOICE_STORAGE_KEY = 'pocket-play-voice-v1';

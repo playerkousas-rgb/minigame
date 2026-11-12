@@ -27,3 +27,6 @@ temp/
 # 文檔與說明（靜態運行不需上傳）
 *.md
 LICENSE
+
+# 建置產物（由 npm run build 產生，不需要上傳原始副本）
+public/

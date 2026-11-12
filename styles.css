@@ -1971,6 +1971,17 @@ textarea:focus-visible,
   border: 0;
 }
 
+.noscript {
+  margin: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #141c2e;
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
 .app-footer {
   display: flex;
   flex-wrap: wrap;
