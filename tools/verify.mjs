@@ -192,6 +192,22 @@ if (!duplicateIds.length && !danglingIds.length && !danglingAria.length) {
   pass('ids', `${idSet.size} 個 ID 全部對得上（app.js ${usedIds.length} 個、ARIA ${ariaRefs.length} 個）`);
 }
 
+/* ---------- 7b. 安裝到主畫面／版本更新流程 ---------- */
+const installIds = ['installAppButton', 'installHelpModal', 'updateBanner', 'updateNowButton'];
+const missingUi = installIds.filter((id) => !html.includes(`id="${id}"`));
+const flowProblems = [];
+if (missingUi.length) flowProblems.push(`index.html 缺 ${missingUi.join('、')}`);
+if (!app.includes('beforeinstallprompt')) flowProblems.push('app.js 沒有攔 beforeinstallprompt（Android 安裝按鈕會失效）');
+if (!app.includes("type: 'SKIP_WAITING'")) flowProblems.push("app.js 沒有向 SW 送出 SKIP_WAITING");
+if (!/updatefound/.test(app)) flowProblems.push('app.js 沒有監聽 updatefound');
+if (!sw.includes("event.data.type !== 'SKIP_WAITING'")) flowProblems.push('sw.js 沒有處理 SKIP_WAITING');
+const installBlock = (sw.match(/self\.addEventListener\('install'[\s\S]*?\n\}\);/) || [''])[0];
+if (/\.then\(\(\) => self\.skipWaiting\(\)\)/.test(installBlock)) {
+  flowProblems.push('sw.js 在 install 無條件 skipWaiting（會玩到一半偷換版，應等用戶按「立即更新」）');
+}
+if (flowProblems.length) fail('update-flow', flowProblems.join('；'));
+else pass('update-flow', '安裝入口（Android prompt／iOS 教學）與「立即更新」流程齊全，SW 不會偷換版');
+
 /* ---------- 8. 部署標頭（A／VL） ---------- */
 let vercel = null;
 try { vercel = JSON.parse(read('vercel.json')); } catch (error) { fail('headers', 'vercel.json 不是合法 JSON'); }

@@ -4,6 +4,18 @@
 
 `package.json` → `index.html`（`meta[name=app-version]` ＋ 頁尾）→ `app.js`（`APP_VERSION`）→ `sw.js`（`APP_VERSION`）
 
+## v1.2.0 — 2026-11-12
+
+### 新增
+- **加入主畫面**：首頁新增「📲 加入主畫面」按鈕。Android／Chrome 用 `beforeinstallprompt` 叫用系統安裝；iOS／iPadOS 彈出三步教學卡；已用主畫面開啟時自動隱藏。
+- **一鍵更新**：Service Worker 偵測到新版本時，底部出現「有新版本可用 → 立即更新 / 稍後」。
+  - 更新不再偷偷換版：新 SW 停在 waiting，等用戶按「立即更新」送出 `SKIP_WAITING`，`controllerchange` 後才重新載入。
+  - 檢查時機：回到前景、重新連線、每 30 分鐘；「稍後」只收起同一個版本，不會反覆騷擾。
+- `npm run check` 新增 `update-flow` 檢查（安裝入口／SKIP_WAITING／SW 不可無條件 skipWaiting），共 14 項。
+
+### 修正
+- Service Worker 首次安裝仍會即時接手，更新則改用 waiting，避免遊戲進行中被換版。
+
 ## v1.1.0 — 2026-11-12
 
 ### 修正（會影響線上能否開啟）

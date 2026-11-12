@@ -17,7 +17,7 @@
 
 ```bash
 npm start          # 零依賴本機伺服器 → http://0.0.0.0:4173（Service Worker 需要 http://）
-npm run check      # 交付前自檢 13 項：版號／module 用法／語法／引用檔／圖標／manifest／ID／CSP／體積／死重／secret
+npm run check      # 交付前自檢 14 項：版號／module 用法／語法／引用檔／圖標／manifest／ID／CSP／安裝與更新流程／體積／死重／secret
 npm run lint       # 同 check，連 vendor 都做語法檢查
 npm run build      # check + 整理 public/（Vercel 的 outputDirectory）
 npm run icons      # 需要 ImageMagick，重新產生 icons/
@@ -30,7 +30,8 @@ npm run icons      # 需要 ImageMagick，重新產生 icons/
 3. **本機切換 view 的規則**：`switchView(name)` 會設定 `hidden` 與 `is-active`；所有 `role="region"` 的 section 都要有 `aria-label`。
 4. **有資料要存**：用 `localStorage`，key 加 `pocket-play-` 前綴，讀取一定要 try/catch（使用者可能清了資料或私隱模式）。
 5. **涉及連線**：只用 PeerJS（`vendor/peerjs.min.js`），房間 ID 由 `makeClientId` 產生；不要新增輪詢或後端。
-6. **改完**：`npm run check && npm run build`，再用手機實測「第一次載入／斷網重開／加入房間」三件事。
+6. **更新流程不可以拆**：`sw.js` 的 install 只可在**首次安裝**（`registration.active` 為空）時 `skipWaiting()`；更新一律留在 waiting，等頁面送出 `{ type: 'SKIP_WAITING' }`。`app.js` 的 `updatefound` → 顯示 `#updateBanner` → `controllerchange` 後 reload。改動後 `npm run check` 的 `update-flow` 會擋。
+7. **改完**：`npm run check && npm run build`，再用手機實測「第一次載入／斷網重開／加入房間／加入主畫面／更新提示」五件事。
 
 ## 4. 部署注意
 

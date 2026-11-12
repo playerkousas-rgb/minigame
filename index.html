@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#0b0c10" />
     <meta name="color-scheme" content="dark" />
-    <meta name="app-version" content="1.1.0" />
+    <meta name="app-version" content="1.2.0" />
     <meta name="description" content="出門玩：離線也能玩的骰子、撲克（德州撲克／21 點／百家樂）、狼人殺與聚會小工具，每款都附玩法說明書。" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./icons/favicon.ico" sizes="any" />
@@ -82,6 +82,10 @@
               <p class="eyebrow">NO SIGNAL. NO PROBLEM.</p>
               <h1 id="page-title">把下一局的<br /><em>好玩</em>帶在身上。</h1>
               <p class="welcome-description">骰子、撲克、陣營遊戲和隨手工具都收進這台手機。每個遊戲都有說明書，揪到人就能開始。</p>
+              <button class="install-cta" id="installAppButton" type="button" hidden>
+                <span aria-hidden="true">📲</span>
+                加入主畫面
+              </button>
             </div>
             <div class="welcome-orbit" aria-hidden="true">
               <span class="orbit-ring orbit-ring-one"></span>
@@ -1501,11 +1505,35 @@
       <footer class="app-footer">
         <span>出門玩 · Pocket Play</span>
         <span>不靠網路，也能玩得很盡興。</span>
-        <span>© 2026 Scout System · v1.1.0</span>
+        <span>© 2026 Scout System · v1.2.0</span>
       </footer>
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <div class="app-banner" id="updateBanner" role="region" aria-label="版本更新" hidden>
+      <span class="app-banner-icon" aria-hidden="true">✨</span>
+      <div class="app-banner-copy">
+        <strong>有新版本可用</strong>
+        <span>更新之後仍然離線可玩，本機資料與分數會保留。</span>
+      </div>
+      <button class="button button-primary app-banner-action" id="updateNowButton" type="button">立即更新</button>
+      <button class="app-banner-close" id="updateLaterButton" type="button" aria-label="稍後再更新">×</button>
+    </div>
+
+    <div class="modal-backdrop" id="installHelpModal" hidden>
+      <div class="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="installHelpTitle">
+        <span class="modal-icon" aria-hidden="true">📲</span>
+        <h2 id="installHelpTitle">加入主畫面</h2>
+        <ol class="install-steps">
+          <li>用 Safari 開啟這一頁</li>
+          <li>按底部「分享」<span aria-hidden="true">⬆</span></li>
+          <li>揀「加入主畫面」，再按「加入」</li>
+        </ol>
+        <p class="install-note">之後從主畫面開啟，就會全螢幕、沒網路也能玩。</p>
+        <div class="modal-actions"><button class="button button-primary" id="closeInstallHelpButton" type="button">知道了</button></div>
+      </div>
+    </div>
     <div class="modal-backdrop" id="clearDataModal" hidden>
       <div class="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="clearDataTitle">
         <span class="modal-icon" aria-hidden="true">↺</span>

@@ -5760,3 +5760,132 @@ button.agent-word:not(:disabled):hover {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ---------- 安裝到主畫面／版本更新 ---------- */
+
+.install-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 20px;
+  padding: 10px 17px;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  border: 0;
+  border-radius: 999px;
+  background: var(--lime);
+  box-shadow: 0 12px 26px rgba(216, 255, 95, 0.16);
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.install-cta:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 16px 32px rgba(216, 255, 95, 0.24);
+}
+
+.install-cta[hidden] {
+  display: none;
+}
+
+.app-banner {
+  position: fixed;
+  left: 50%;
+  bottom: max(78px, calc(env(safe-area-inset-bottom) + 70px));
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(92vw, 470px);
+  padding: 12px 14px;
+  color: var(--paper);
+  border: 1px solid var(--line-strong);
+  border-radius: 18px;
+  background: var(--ink-card-2);
+  box-shadow: var(--shadow);
+  transform: translateX(-50%);
+}
+
+.app-banner[hidden] {
+  display: none;
+}
+
+.app-banner-icon {
+  font-size: 18px;
+}
+
+.app-banner-copy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+
+.app-banner-copy strong {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.app-banner-copy span {
+  color: var(--paper-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.app-banner-action {
+  flex: none;
+  padding: 9px 14px;
+  font-size: 12px;
+}
+
+.app-banner-close {
+  flex: none;
+  padding: 4px;
+  color: var(--paper-muted);
+  font-size: 18px;
+  line-height: 1;
+  border: 0;
+  background: transparent;
+}
+
+.app-banner-close:hover {
+  color: var(--paper);
+}
+
+.install-steps {
+  margin: 4px 0 0;
+  padding-left: 20px;
+  color: var(--paper-muted);
+  font-size: 13px;
+  line-height: 1.9;
+  text-align: left;
+}
+
+.install-steps li::marker {
+  color: var(--lime);
+  font-weight: 800;
+}
+
+.install-note {
+  margin: 10px 0 0;
+  color: var(--paper-muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+@media (max-width: 620px) {
+  .app-banner {
+    gap: 8px;
+    padding: 11px 12px;
+  }
+
+  .app-banner-copy span {
+    display: none;
+  }
+
+  .app-banner-action {
+    padding: 8px 12px;
+  }
+}

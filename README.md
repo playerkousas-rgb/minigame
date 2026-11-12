@@ -2,8 +2,9 @@
 
 一個以手機為中心、無需網路也能使用的聚會小工具箱。
 
-> **目前版本：v1.1.0**（零 npm 依賴、離線 PWA、單一靜態 bundle 851 KB）
-> 交付前自檢：`npm run check`（13 項）· 建置：`npm run build` · 本機預覽：`npm start`
+> **目前版本：v1.2.0**（零 npm 依賴、離線 PWA、單一靜態 bundle 約 862 KB）
+> 交付前自檢：`npm run check`（14 項）· 建置：`npm run build` · 本機預覽：`npm start`
+> 可「加入主畫面」當 App 用；有新版本會出現「立即更新」，唔會玩到一半被偷偷換版。
 > 更新紀錄：[CHANGELOG.md](CHANGELOG.md) · 授權：[MIT](LICENSE)
 
 ## 首頁：四大分類
@@ -16,6 +17,12 @@
 4. **🧰 小工具**：幸運輪、隨機分隊、硬幣、多人計分板、活動倒數
 
 **每一款遊戲（含工具）都附「📖 玩法說明書」**：進入遊戲先看到目標、人數、準備、流程、勝負與小提示，像開 board game 的說明書一樣，不用先上網查規則。
+
+## 當 App 用：加入主畫面 · 一鍵更新
+
+- **加入主畫面**：首頁的「📲 加入主畫面」按鈕。Android／Chrome 會叫用系統安裝提示；iPhone／iPad 會彈出三步教學（分享 → 加入主畫面 → 加入）。已經用主畫面開啟時自動隱藏。
+- **版本更新**：Service Worker 偵測到新版本時，畫面底部會出現「✨ 有新版本可用 — 立即更新 / 稍後」。按「稍後」不會再吵你；按「立即更新」才會換版並自動重新載入，本機資料與分數保留（連線中的房間會斷開，重新加入即可）。
+- 更新檢查時機：每次回到前景、重新連線、以及每 30 分鐘一次；不會在背景偷換版。
 
 ## 卡牌遊戲（多人 + 單機）
 
@@ -58,10 +65,10 @@ PORT=8080 npm start       # 換 port
 
 Service Worker 需要透過 `http://` 或 `https://` 載入；直接雙擊 `index.html` 仍可使用所有遊戲功能，只是瀏覽器不會啟用離線快取。
 
-## 交付前自檢（13 項）
+## 交付前自檢（14 項）
 
 ```bash
-npm run check    # tools/verify.mjs：版號、module 用法、語法、引用檔案、圖標、manifest、ID 對照、CSP、體積、死重、secret
+npm run check    # tools/verify.mjs：版號、module 用法、語法、引用檔案、圖標、manifest、ID／ARIA 對照、安裝與更新流程、CSP、體積、死重、secret
 npm run lint     # 同上，連 vendor 都做語法檢查
 npm run build    # 先自檢，再把 5 個檔案＋icons/＋vendor/ 整理到 public/
 npm run icons    # 需要 ImageMagick；重新產生 icons/ 9 個圖標（日常建置不需要）
@@ -93,7 +100,7 @@ sw.js                 Service Worker：同源 network-first／stale-while-revali
 manifest.webmanifest  PWA manifest（4 個圖標、standalone）
 icons/                9 個 PNG／ICO 圖標（含 maskable、1200×630 分享圖）
 vendor/               QRCode、PeerJS（第三方，長快取）
-tools/verify.mjs      交付前自檢
+tools/verify.mjs      交付前自檢（含安裝／更新流程檢查）
 tools/serve.mjs       零依賴本機伺服器
 tools/build-static.mjs 整理 public/
 vercel.json           部署、快取與安全標頭

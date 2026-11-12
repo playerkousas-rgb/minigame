@@ -7,7 +7,7 @@
 (() => {
   'use strict';
 
-  const APP_VERSION = '1.1.0';
+  const APP_VERSION = '1.2.0';
   // 版本號同時出現於 package.json、index.html 的 meta[name=app-version] 與頁尾；
   // tools/verify.mjs 會對照這三處，避免「改了程式沒改版號」。
   document.documentElement.dataset.appVersion = APP_VERSION;
@@ -10614,12 +10614,139 @@
     updateTimerDisplay();
   }
 
-  // Cache the shell for offline use when served from a web origin.
+  // ---------- 加入主畫面（Android/Chrome 用 beforeinstallprompt，iOS 用教學卡） ----------
+  const installButton = $('#installAppButton');
+  const installHelpModal = $('#installHelpModal');
+  let deferredInstallPrompt = null;
+
+  const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  const isIos = () => /iphone|ipad|ipod/i.test(navigator.userAgent || '')
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+  function showInstallEntry() {
+    if (!installButton || isStandalone()) return;
+    installButton.hidden = false;
+  }
+
+  function hideInstallHelp() {
+    if (installHelpModal) installHelpModal.hidden = true;
+  }
+
+  window.addEventListener('beforeinstallprompt', (event) => {
+    // 瀏覽器預設會自己彈安裝提示；這裡攔下來，改成 App 內自己的按鈕。
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    showInstallEntry();
+  });
+
+  window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null;
+    if (installButton) installButton.hidden = true;
+    hideInstallHelp();
+    showToast('已加入主畫面');
+  });
+
+  if (installButton) {
+    installButton.addEventListener('click', async () => {
+      if (deferredInstallPrompt) {
+        deferredInstallPrompt.prompt();
+        try { await deferredInstallPrompt.userChoice; } catch (error) { /* 使用者直接關閉 */ }
+        deferredInstallPrompt = null;
+        return;
+      }
+      if (isIos()) {
+        if (installHelpModal) {
+          installHelpModal.hidden = false;
+          const close = $('#closeInstallHelpButton');
+          if (close) close.focus();
+        }
+        return;
+      }
+      showToast('請用瀏覽器選單的「安裝應用程式」或「加入主畫面」');
+    });
+    // iOS 沒有 beforeinstallprompt，直接顯示入口（教學卡）。
+    if (isIos() && !isStandalone()) showInstallEntry();
+  }
+
+  if (installHelpModal) {
+    const closeButton = $('#closeInstallHelpButton');
+    if (closeButton) closeButton.addEventListener('click', hideInstallHelp);
+    installHelpModal.addEventListener('click', (event) => {
+      if (event.target === installHelpModal) hideInstallHelp();
+    });
+    window.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && !installHelpModal.hidden) hideInstallHelp();
+    });
+  }
+
+  // ---------- 版本更新：Service Worker + 一鍵更新 ----------
+  const updateBanner = $('#updateBanner');
+  const updateNowButton = $('#updateNowButton');
+  const updateLaterButton = $('#updateLaterButton');
+  let waitingWorker = null;
+  let dismissedWorker = null;
+  let updateReloading = false;
+
+  function showUpdateBanner(worker) {
+    if (!updateBanner || !worker || worker === dismissedWorker) return;
+    waitingWorker = worker;
+    updateBanner.hidden = false;
+  }
+
+  function applyUpdate() {
+    if (!waitingWorker) {
+      window.location.reload();
+      return;
+    }
+    updateReloading = true;
+    waitingWorker.postMessage({ type: 'SKIP_WAITING' });
+    // 保險：若 controllerchange 沒發生（舊瀏覽器），兩秒半後自己重新載入。
+    window.setTimeout(() => window.location.reload(), 2500);
+  }
+
+  if (updateNowButton) updateNowButton.addEventListener('click', applyUpdate);
+  if (updateLaterButton) {
+    updateLaterButton.addEventListener('click', () => {
+      dismissedWorker = waitingWorker;
+      if (updateBanner) updateBanner.hidden = true;
+    });
+  }
+
   if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js').catch(() => {
-        // The app remains fully usable if a browser does not support service workers.
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!updateReloading) return;
+      updateReloading = false;
+      window.location.reload();
+    });
+
+    // Cache the shell for offline use when served from a web origin.
+    window.addEventListener('load', async () => {
+      let registration;
+      try {
+        registration = await navigator.serviceWorker.register('./sw.js');
+      } catch (error) {
+        return; // 沒有 Service Worker 也完全可用，只是不能離線。
+      }
+
+      const watch = (worker) => {
+        if (!worker) return;
+        worker.addEventListener('statechange', () => {
+          // 已有舊版在控制頁面，而新 SW 已安裝好 → 顯示「立即更新」。
+          if (worker.state === 'installed' && navigator.serviceWorker.controller) showUpdateBanner(worker);
+        });
+      };
+
+      if (registration.waiting && navigator.serviceWorker.controller) showUpdateBanner(registration.waiting);
+      watch(registration.installing);
+      registration.addEventListener('updatefound', () => watch(registration.installing));
+
+      // 回到前景、重新連線、每 30 分鐘檢查一次有沒有新版本。
+      const checkForUpdate = () => { registration.update().catch(() => {}); };
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') checkForUpdate();
       });
+      window.addEventListener('online', checkForUpdate);
+      window.setInterval(checkForUpdate, 30 * 60 * 1000);
     });
   }
 })();

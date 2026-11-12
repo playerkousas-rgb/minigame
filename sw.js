@@ -8,8 +8,10 @@
  *  3. 靜態資源（CSS/JS/圖示）用 stale-while-revalidate：即刻回應、背景更新。
  *  4. 只快取 200 OK 的基本回應；唔會把 404／500／opaque 回應寫入快取。
  *  5. 版本號 = APP_VERSION；每次改版一齊改 package.json／index.html／app.js，舊快取自動清走。
+ *  6. 更新不會偷偷換版：新 SW 會停在 waiting，由頁面（app.js）顯示「立即更新」，
+ *     收到 { type: 'SKIP_WAITING' } 才 skipWaiting()，controllerchange 後重新載入。
  */
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '1.2.0';
 const CACHE_NAME = `pocket-play-v${APP_VERSION}`;
 const OFFLINE_URL = './index.html';
 const APP_SHELL = [
@@ -34,8 +36,15 @@ self.addEventListener('install', (event) => {
     caches.open(CACHE_NAME)
       // cache: 'reload' 強制跳過 HTTP 快取，確保新版本外殼真的落袋。
       .then((cache) => cache.addAll(APP_SHELL.map((url) => new Request(url, { cache: 'reload' }))))
-      .then(() => self.skipWaiting())
+      // 第一次安裝（未有 active SW）即刻接手；
+      // 之後的更新留在 waiting，等用戶按「立即更新」才接手，避免玩到一半被換版。
+      .then(() => (self.registration.active ? undefined : self.skipWaiting()))
   );
+});
+
+self.addEventListener('message', (event) => {
+  if (!event.data || event.data.type !== 'SKIP_WAITING') return;
+  self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
