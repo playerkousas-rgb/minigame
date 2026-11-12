@@ -4,13 +4,47 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#0b0c10" />
-    <meta name="description" content="出門玩：離線也能使用的骰子、幸運輪與聚會小工具。" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="app-version" content="1.2.0" />
+    <meta name="description" content="出門玩：離線也能玩的骰子、撲克（德州撲克／21 點／百家樂）、狼人殺與聚會小工具，每款都附玩法說明書。" />
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+    <link rel="icon" href="./icons/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" sizes="16x16" href="./icons/favicon-16.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="./icons/favicon-32.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="出門玩" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="出門玩 · Pocket Play" />
+    <meta property="og:title" content="出門玩｜離線遊戲工具箱" />
+    <meta property="og:description" content="骰子、撲克、陣營遊戲與聚會小工具，離線也能玩。每款都附玩法說明書。" />
+    <!-- og:image 需要絕對網址才會有預覽圖；部署後把下面改成 https://<你的網域>/icons/og-image.png -->
+    <meta property="og:image" content="./icons/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="出門玩 Pocket Play：離線派對遊戲與小工具" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "出門玩 · Pocket Play",
+        "description": "離線也能玩的骰子、撲克、陣營遊戲與聚會小工具，每款都附玩法說明書。",
+        "applicationCategory": "GameApplication",
+        "operatingSystem": "Web",
+        "inLanguage": "zh-Hant",
+        "isAccessibleForFree": true,
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "HKD" }
+      }
+    </script>
     <link rel="stylesheet" href="./styles.css" />
     <title>出門玩｜離線遊戲工具箱</title>
   </head>
   <body>
+    <noscript>
+      <p class="noscript">這個工具箱需要 JavaScript 才能擲骰、發牌與計分。請開啟瀏覽器的 JavaScript 後重新載入。</p>
+    </noscript>
     <div class="app-shell">
       <header class="topbar">
         <a class="brand" href="#top" data-go-home aria-label="出門玩首頁">
@@ -48,6 +82,10 @@
               <p class="eyebrow">NO SIGNAL. NO PROBLEM.</p>
               <h1 id="page-title">把下一局的<br /><em>好玩</em>帶在身上。</h1>
               <p class="welcome-description">骰子、撲克、陣營遊戲和隨手工具都收進這台手機。每個遊戲都有說明書，揪到人就能開始。</p>
+              <button class="install-cta" id="installAppButton" type="button" hidden>
+                <span aria-hidden="true">📲</span>
+                加入主畫面
+              </button>
             </div>
             <div class="welcome-orbit" aria-hidden="true">
               <span class="orbit-ring orbit-ring-one"></span>
@@ -330,7 +368,7 @@
           </div>
         </section>
 
-        <section class="app-view" id="view-dice" role="tabpanel" aria-labelledby="tab-dice" hidden>
+        <section class="app-view" id="view-dice" role="region" aria-label="骰子工具" hidden>
           <div class="game-page-head">
             <button class="back-button" data-back="cat-dice" type="button">← 骰子遊戲</button>
             <span class="game-page-meta">📖 說明書在下方，也可隨時展開</span>
@@ -496,7 +534,7 @@
           </div>
         </section>
 
-        <section class="app-view" id="view-wheel" role="tabpanel" aria-labelledby="tab-wheel" hidden>
+        <section class="app-view" id="view-wheel" role="region" aria-label="幸運輪" hidden>
           <div class="game-page-head">
             <button class="back-button" data-back="cat-tools" type="button">← 小工具</button>
             <span class="game-page-meta">📖 說明書在下方，也可隨時展開</span>
@@ -571,7 +609,7 @@
           </div>
         </section>
 
-        <section class="app-view" id="view-tools" role="tabpanel" aria-labelledby="tab-tools" hidden>
+        <section class="app-view" id="view-tools" role="region" aria-label="小工具" hidden>
           <div class="game-page-head">
             <button class="back-button" data-back="cat-tools" type="button">← 小工具</button>
             <span class="game-page-meta">📖 四個工具都有說明</span>
@@ -712,7 +750,7 @@
             </article>
           </div>
         </section>
-        <section class="app-view" id="view-wolf" role="tabpanel" aria-labelledby="tab-wolf" hidden>
+        <section class="app-view" id="view-wolf" role="region" aria-label="狼人殺" hidden>
           <div class="game-page-head">
             <button class="back-button" data-back="cat-talk" type="button">← 對話遊戲</button>
             <span class="game-page-meta">📖 在「建立房間」內有玩法說明</span>
@@ -798,7 +836,7 @@
           </div>
         </section>
 
-        <section class="app-view" id="view-spy" role="tabpanel" aria-labelledby="tab-spy" hidden>
+        <section class="app-view" id="view-spy" role="region" aria-label="誰是臥底與間諜危機" hidden>
           <div class="game-page-head">
             <button class="back-button" data-back="cat-talk" type="button">← 對話遊戲</button>
             <span class="game-page-meta">📖 在「建立房間」內有玩法說明</span>
@@ -911,7 +949,7 @@
           </div>
         </section>
 
-        <section class="app-view" id="view-one" role="tabpanel" aria-labelledby="tab-one" hidden>
+        <section class="app-view" id="view-one" role="region" aria-label="一夜狼人" hidden>
           <div class="game-page-head">
             <button class="back-button" data-back="cat-talk" type="button">← 對話遊戲</button>
             <span class="game-page-meta">📖 在「建立房間」內有玩法說明</span>
@@ -996,7 +1034,7 @@
           </div>
         </section>
 
-        <section class="app-view" id="view-agent" role="tabpanel" aria-labelledby="tab-agent" hidden>
+        <section class="app-view" id="view-agent" role="region" aria-label="機密特務" hidden>
           <div class="game-page-head">
             <button class="back-button" data-back="cat-cards" type="button">← 卡牌遊戲</button>
             <span class="game-page-meta">📖 在「建立房間」內有玩法說明</span>
@@ -1467,11 +1505,35 @@
       <footer class="app-footer">
         <span>出門玩 · Pocket Play</span>
         <span>不靠網路，也能玩得很盡興。</span>
-        <span>© 2026 Scout System</span>
+        <span>© 2026 Scout System · v1.2.0</span>
       </footer>
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <div class="app-banner" id="updateBanner" role="region" aria-label="版本更新" hidden>
+      <span class="app-banner-icon" aria-hidden="true">✨</span>
+      <div class="app-banner-copy">
+        <strong>有新版本可用</strong>
+        <span>更新之後仍然離線可玩，本機資料與分數會保留。</span>
+      </div>
+      <button class="button button-primary app-banner-action" id="updateNowButton" type="button">立即更新</button>
+      <button class="app-banner-close" id="updateLaterButton" type="button" aria-label="稍後再更新">×</button>
+    </div>
+
+    <div class="modal-backdrop" id="installHelpModal" hidden>
+      <div class="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="installHelpTitle">
+        <span class="modal-icon" aria-hidden="true">📲</span>
+        <h2 id="installHelpTitle">加入主畫面</h2>
+        <ol class="install-steps">
+          <li>用 Safari 開啟這一頁</li>
+          <li>按底部「分享」<span aria-hidden="true">⬆</span></li>
+          <li>揀「加入主畫面」，再按「加入」</li>
+        </ol>
+        <p class="install-note">之後從主畫面開啟，就會全螢幕、沒網路也能玩。</p>
+        <div class="modal-actions"><button class="button button-primary" id="closeInstallHelpButton" type="button">知道了</button></div>
+      </div>
+    </div>
     <div class="modal-backdrop" id="clearDataModal" hidden>
       <div class="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="clearDataTitle">
         <span class="modal-icon" aria-hidden="true">↺</span>
@@ -1483,6 +1545,8 @@
 
     <script src="./vendor/qrcode.js" defer></script>
     <script src="./vendor/peerjs.min.js" defer></script>
+    <!-- Vercel Web Analytics（靜態網站專用 snippet）：只在正式網域回應，localhost 404 無害 -->
+    <script src="/_vercel/insights/script.js" defer></script>
     <script src="./app.js" defer></script>
   </body>
 </html>

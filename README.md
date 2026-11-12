@@ -2,6 +2,11 @@
 
 一個以手機為中心、無需網路也能使用的聚會小工具箱。
 
+> **目前版本：v1.2.0**（零 npm 依賴、離線 PWA、單一靜態 bundle 約 862 KB）
+> 交付前自檢：`npm run check`（14 項）· 建置：`npm run build` · 本機預覽：`npm start`
+> 可「加入主畫面」當 App 用；有新版本會出現「立即更新」，唔會玩到一半被偷偷換版。
+> 更新紀錄：[CHANGELOG.md](CHANGELOG.md) · 授權：[MIT](LICENSE)
+
 ## 首頁：四大分類
 
 遊戲與工具分開排好，首頁就是 2×2 的四大方格（手機正好一版四格），點進分類再挑要玩的遊戲：
@@ -12,6 +17,12 @@
 4. **🧰 小工具**：幸運輪、隨機分隊、硬幣、多人計分板、活動倒數
 
 **每一款遊戲（含工具）都附「📖 玩法說明書」**：進入遊戲先看到目標、人數、準備、流程、勝負與小提示，像開 board game 的說明書一樣，不用先上網查規則。
+
+## 當 App 用：加入主畫面 · 一鍵更新
+
+- **加入主畫面**：首頁的「📲 加入主畫面」按鈕。Android／Chrome 會叫用系統安裝提示；iPhone／iPad 會彈出三步教學（分享 → 加入主畫面 → 加入）。已經用主畫面開啟時自動隱藏。
+- **版本更新**：Service Worker 偵測到新版本時，畫面底部會出現「✨ 有新版本可用 — 立即更新 / 稍後」。按「稍後」不會再吵你；按「立即更新」才會換版並自動重新載入，本機資料與分數保留（連線中的房間會斷開，重新加入即可）。
+- 更新檢查時機：每次回到前景、重新連線、以及每 30 分鐘一次；不會在背景偷換版。
 
 ## 卡牌遊戲（多人 + 單機）
 
@@ -43,13 +54,57 @@
 
 ## 本機預覽
 
-這是無依賴的靜態網頁，不需要安裝套件。用任何靜態伺服器啟動即可，例如：
+這是零依賴的靜態網頁，**不需要 `npm install`**：
 
 ```bash
-python3 -m http.server 4173 --bind 0.0.0.0
+npm start                 # node tools/serve.mjs → http://0.0.0.0:4173
+PORT=8080 npm start       # 換 port
 ```
 
+`tools/serve.mjs` 只用 Node 內建模組（不用 `npx serve` 上網下載），會回正確 MIME、阻擋路徑穿越、把乾淨網址 fallback 到 `index.html`，並對 `/_vercel/*` 回 204。
+
 Service Worker 需要透過 `http://` 或 `https://` 載入；直接雙擊 `index.html` 仍可使用所有遊戲功能，只是瀏覽器不會啟用離線快取。
+
+## 交付前自檢（14 項）
+
+```bash
+npm run check    # tools/verify.mjs：版號、module 用法、語法、引用檔案、圖標、manifest、ID／ARIA 對照、安裝與更新流程、CSP、體積、死重、secret
+npm run lint     # 同上，連 vendor 都做語法檢查
+npm run build    # 先自檢，再把 5 個檔案＋icons/＋vendor/ 整理到 public/
+npm run icons    # 需要 ImageMagick；重新產生 icons/ 9 個圖標（日常建置不需要）
+```
+
+自檢會擋住幾種「看起來正常、上線即死」的情況，例如：
+
+- `app.js` 是傳統 `<script defer>`，卻加了 top-level `import`（瀏覽器即 SyntaxError，整個 App 白畫面）。
+- `package.json`／`index.html`（meta＋頁尾）／`app.js`／`sw.js` 版號不一致。
+- HTML／manifest／Service Worker 指去不存在的檔案，或圖標尺寸不對。
+
+CI 亦會在每次 push／PR 跑同一套（[.github/workflows/check.yml](.github/workflows/check.yml)）。
+
+## 部署（Vercel）
+
+- `vercel.json`：`framework: null`、`buildCommand: npm run build`、`outputDirectory: public`，只部署建置產物；`package.json`、`tools/`、`*.md` 不會派街。
+- 安全標頭：CSP（`script-src 'self'`、`frame-ancestors 'none'`）、`X-Content-Type-Options`、`Referrer-Policy`、`Permissions-Policy`；`sw.js`／manifest 用 `must-revalidate`，`vendor/` 長快取，`icons/` 一星期。
+- **Vercel Web Analytics** 用靜態 snippet（`/_vercel/insights/script.js`，見 `index.html`），不要再加 npm 套件；在 Dashboard → Analytics 開啟即可。它是無 cookie 的彙總流量統計，不會讀寫 `localStorage`、也不影響離線；不想收集就刪掉 `index.html` 那一行 `<script>`。
+- **分享預覽圖**：`index.html` 的 `og:image` 現時是相對路徑；首次部署後請改成 `https://<你的網域>/icons/og-image.png`（絕對網址），WhatsApp／Signal 才會有預覽圖。
+- **Deployment Protection**：若專案開了 Vercel Authentication，朋友掃 QR 會被要求登入而無法加入房間；多人連線前請在 Vercel 專案設定關閉，或改用公開網域。
+
+## 專案結構
+
+```
+index.html            單頁 App（10 個遊戲／工具畫面）
+styles.css            全部樣式（含 prefers-reduced-motion、focus-visible）
+app.js                全部遊戲邏輯（傳統 script，非 ES module）
+sw.js                 Service Worker：同源 network-first／stale-while-revalidate
+manifest.webmanifest  PWA manifest（4 個圖標、standalone）
+icons/                9 個 PNG／ICO 圖標（含 maskable、1200×630 分享圖）
+vendor/               QRCode、PeerJS（第三方，長快取）
+tools/verify.mjs      交付前自檢（含安裝／更新流程檢查）
+tools/serve.mjs       零依賴本機伺服器
+tools/build-static.mjs 整理 public/
+vercel.json           部署、快取與安全標頭
+```
 
 ## 離線版本（已完成）
 
@@ -97,5 +152,10 @@ Service Worker 需要透過 `http://` 或 `https://` 載入；直接雙擊 `inde
      npm run lint
      npm run build
      ```
+   - 改版號要四個地方一齊改：`package.json`、`index.html`（meta＋頁尾）、`app.js`、`sw.js`（`npm run check` 會對照）。
    - 嚴格確保既有功能、邏輯、離線 PWA、PeerJS 多人連線與各款遊戲 100% 正常運作。
+
+6. **零 npm 依賴（v1.1.0 起）**：
+   - `dependencies` 已經清空；不要為了一個小功能引入套件（包括 analytics、UI library）。第三方程式碼一律放 `vendor/` 並自行鎖版本。
+   - `app.js` 是傳統 script：**不可**加 top-level `import`／`export`；要改用 ESM 就同時改 `index.html` 的 `<script type="module">`，並確保 vendor 先執行。
 

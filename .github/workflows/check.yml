@@ -1,0 +1,23 @@
+name: check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      # 零依賴：不需要 npm install，直接跑自檢＋建置（會驗語法、版號、圖標、CSP、死重）
+      - name: Verify
+        run: npm run check
+      - name: Build static bundle
+        run: npm run build
