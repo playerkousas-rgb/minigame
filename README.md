@@ -2,8 +2,8 @@
 
 一個以手機為中心、無需網路也能使用的聚會小工具箱。
 
-> **目前版本：v1.2.0**（零 npm 依賴、離線 PWA、單一靜態 bundle 約 862 KB）
-> 交付前自檢：`npm run check`（14 項）· 建置：`npm run build` · 本機預覽：`npm start`
+> **目前版本：v1.3.0**（零 npm 依賴、離線 PWA、白名單準入、單一靜態 bundle 約 0.9 MB）
+> 交付前自檢：`npm run check`（15 項）· 建置：`npm run build` · 本機預覽：`npm start`
 > 可「加入主畫面」當 App 用；有新版本會出現「立即更新」，唔會玩到一半被偷偷換版。
 > 更新紀錄：[CHANGELOG.md](CHANGELOG.md) · 授權：[MIT](LICENSE)
 
@@ -61,24 +61,25 @@ npm start                 # node tools/serve.mjs → http://0.0.0.0:4173
 PORT=8080 npm start       # 換 port
 ```
 
-`tools/serve.mjs` 只用 Node 內建模組（不用 `npx serve` 上網下載），會回正確 MIME、阻擋路徑穿越、把乾淨網址 fallback 到 `index.html`，並對 `/_vercel/*` 回 204。
+`tools/serve.mjs` 只用 Node 內建模組（不用 `npx serve` 上網下載），會把版本化來源映射到穩定 runtime 路徑（`index.html`／`app.js` 等）、回正確 MIME、阻擋路徑穿越、把乾淨網址 fallback 到版本化首頁，並對 `/_vercel/*` 回 204。
 
-Service Worker 需要透過 `http://` 或 `https://` 載入；直接雙擊 `index.html` 仍可使用所有遊戲功能，只是瀏覽器不會啟用離線快取。
+Service Worker 需要透過 `http://` 或 `https://` 載入；請用 `npm start` 預覽，唔好直接雙擊版本化 HTML（本機資源路徑由伺服器映射）。
 
-## 交付前自檢（14 項）
+## 交付前自檢（15 項）
 
 ```bash
-npm run check    # tools/verify.mjs：版號、module 用法、語法、引用檔案、圖標、manifest、ID／ARIA 對照、安裝與更新流程、CSP、體積、死重、secret
-npm run lint     # 同上，連 vendor 都做語法檢查
-npm run build    # 先自檢，再把 5 個檔案＋icons/＋vendor/ 整理到 public/
+npm run check    # tools/verify.mjs：版號檔名／內文、module、語法、資產、manifest、ID／ARIA、Gate／SG18、安裝更新、CSP、體積、死重、secret
+npm run lint     # 同上，連 vendor 都做語法檢查（--strict-syntax 會啟用 strict 模式）
+npm run build    # 先自檢，再把 7 個 runtime 檔案＋icons/＋vendor/ 整理到 public/
 npm run icons    # 需要 ImageMagick；重新產生 icons/ 9 個圖標（日常建置不需要）
 ```
 
 自檢會擋住幾種「看起來正常、上線即死」的情況，例如：
 
 - `app.js` 是傳統 `<script defer>`，卻加了 top-level `import`（瀏覽器即 SyntaxError，整個 App 白畫面）。
-- `package.json`／`index.html`（meta＋頁尾）／`app.js`／`sw.js` 版號不一致。
+- `package.json`／版本化 HTML／CSS／JS／manifest 檔名與內文版號不一致。
 - HTML／manifest／Service Worker 指去不存在的檔案，或圖標尺寸不對。
+- Store Gate 模板被改動、CSP 順序／設定錯誤、SG18 連結不是透過 helper，或入口模擬不符合 SG19。
 
 CI 亦會在每次 push／PR 跑同一套（[.github/workflows/check.yml](.github/workflows/check.yml)）。
 
@@ -90,20 +91,31 @@ CI 亦會在每次 push／PR 跑同一套（[.github/workflows/check.yml](.githu
 - **分享預覽圖**：`index.html` 的 `og:image` 現時是相對路徑；首次部署後請改成 `https://<你的網域>/icons/og-image.png`（絕對網址），WhatsApp／Signal 才會有預覽圖。
 - **Deployment Protection**：若專案開了 Vercel Authentication，朋友掃 QR 會被要求登入而無法加入房間；多人連線前請在 Vercel 專案設定關閉，或改用公開網域。
 
+## 白名單準入（A 組）
+
+- 模式：`entry-gate`；`portalIds: ['appstore']`；`silentPortalIds: ['library']`；`allowStandalone: true`；`autoRedirectSeconds: 0`；`supportNudge` 關閉。
+- Vercel 發佈根目錄由 `vercel.json` 明確指定為 `public/`。`npm run build` 會將版本化來源檔映射成穩定 runtime 路徑，並把真理倉 `store_gate_v1.0.js` 原封不動放入 `public/`。
+- 閘門設定放在同源外部 JS，避免違反現有 `script-src 'self'` CSP；不放寬 CSP、不加 inline JavaScript。
+- SG18 頂欄「讚好／收藏」掣只用 `ScoutStoreGate.getAppStoreUrl('minigame')`，`minigame` slug 已按 `20261116-app-slug-seed.sql` 的正式 host 對照核實；不連主站 Supabase、不寫死主站 URL。
+- 閘門只使用 `sessionStorage` 通行記號 `minigame.store_pass`；無新增啟用中的 `localStorage` key。現有 `pocket-play-state-v1`（小遊戲狀態）、`pocket-play-voice-v1`（語音開關）、`pocket-play-voice-language-v1`（語音語言）保留不變。模板保留但未啟用的 `supportNudge` 若日後開啟才會讀寫 `minigame.support_nudge_at`；本次設定不會建立該 key。
+- **雙語範圍**：遊戲介面目前只有繁體中文；語音導播的廣東話／普通話選擇不等同 UI 雙語。此 repo 於 2026-08-21 已建立，`docs/44` 明言現有 repo 不追溯加英文；記錄：`EXCEPTION: L1 — 舊 repo（docs/44 不追溯）— 持續`。
+
 ## 專案結構
 
 ```
-index.html            單頁 App（10 個遊戲／工具畫面）
-styles.css            全部樣式（含 prefers-reduced-motion、focus-visible）
-app.js                全部遊戲邏輯（傳統 script，非 ES module）
-sw.js                 Service Worker：同源 network-first／stale-while-revalidate
-manifest.webmanifest  PWA manifest（4 個圖標、standalone）
-icons/                9 個 PNG／ICO 圖標（含 maskable、1200×630 分享圖）
-vendor/               QRCode、PeerJS（第三方，長快取）
-tools/verify.mjs      交付前自檢（含安裝／更新流程檢查）
-tools/serve.mjs       零依賴本機伺服器
-tools/build-static.mjs 整理 public/
-vercel.json           部署、快取與安全標頭
+index_v1.3.0.html              版本化單頁 App（10 個遊戲／工具畫面）
+styles_v1.3.0.css              版本化樣式（含 SG18、focus-visible、列印隱藏）
+app_v1.3.0.js                  版本化遊戲邏輯（傳統 script，非 ES module）
+sw_v1.3.0.js                   版本化 Service Worker（同源 network-first／stale-while-revalidate）
+manifest_v1.3.0.webmanifest    版本化 PWA manifest（standalone）
+store_gate_v1.0.js             真理倉白名單模板（原封不動）
+store_gate_config_v1.3.0.js    CSP-safe entry-gate＋SG18 設定
+icons/                         9 個 PNG／ICO 圖標（含 maskable、1200×630 分享圖）
+vendor/                        QRCode、PeerJS（第三方，長快取）
+tools/verify.mjs               15 項交付前自檢（含 Store Gate 模擬）
+tools/serve.mjs                零依賴本機伺服器＋runtime 路徑映射
+tools/build-static.mjs         整理版本化來源到 public/ 固定 runtime 名稱
+vercel.json                    部署、快取與安全標頭
 ```
 
 ## 離線版本（已完成）
@@ -152,7 +164,7 @@ vercel.json           部署、快取與安全標頭
      npm run lint
      npm run build
      ```
-   - 改版號要四個地方一齊改：`package.json`、`index.html`（meta＋頁尾）、`app.js`、`sw.js`（`npm run check` 會對照）。
+   - 改版要同步更新 package 版號、版本化來源檔名／內文（HTML meta、title、footer；CSS／manifest；APP_VERSION／SW cache）、白名單設定版本與 CHANGELOG；`npm run check` 會逐項對照。
    - 嚴格確保既有功能、邏輯、離線 PWA、PeerJS 多人連線與各款遊戲 100% 正常運作。
 
 6. **零 npm 依賴（v1.1.0 起）**：

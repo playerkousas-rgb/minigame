@@ -1,4 +1,4 @@
-// 出門玩 · Pocket Play — app shell
+// 出門玩 · Pocket Play — app shell · 版本：v1.3.0 · © SCOUT SYSTEM
 // 這是一支「傳統 script」（index.html 用 <script defer> 載入），不是 ES module：
 // 任何 top-level import/export 都會令整個檔案在瀏覽器直接 SyntaxError、全 App 停擺。
 // 若日後真的要改用 ESM，必須同步把 index.html 改成 <script type="module">，
@@ -7,7 +7,7 @@
 (() => {
   'use strict';
 
-  const APP_VERSION = '1.2.0';
+  const APP_VERSION = '1.3.0';
   // 版本號同時出現於 package.json、index.html 的 meta[name=app-version] 與頁尾；
   // tools/verify.mjs 會對照這三處，避免「改了程式沒改版號」。
   document.documentElement.dataset.appVersion = APP_VERSION;

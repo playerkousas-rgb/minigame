@@ -1,5 +1,5 @@
 /*
- * 出門玩 · Pocket Play — Service Worker
+ * 出門玩 · Pocket Play — Service Worker · 版本：v1.3.0 · © SCOUT SYSTEM
  * 目標：離線可玩，但永遠唔會「卡住舊版」或者「快取錯嘢」。
  *
  * 規則（tools/verify.mjs 會檢查）：
@@ -11,7 +11,7 @@
  *  6. 更新不會偷偷換版：新 SW 會停在 waiting，由頁面（app.js）顯示「立即更新」，
  *     收到 { type: 'SKIP_WAITING' } 才 skipWaiting()，controllerchange 後重新載入。
  */
-const APP_VERSION = '1.2.0';
+const APP_VERSION = '1.3.0';
 const CACHE_NAME = `pocket-play-v${APP_VERSION}`;
 const OFFLINE_URL = './index.html';
 const APP_SHELL = [
@@ -20,6 +20,8 @@ const APP_SHELL = [
   './styles.css',
   './app.js',
   './manifest.webmanifest',
+  './store_gate_v1.0.js',
+  './store_gate_config_v1.3.0.js',
   './icons/favicon-16.png',
   './icons/favicon-32.png',
   './icons/apple-touch-icon.png',

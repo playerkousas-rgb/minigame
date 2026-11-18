@@ -2,15 +2,10 @@
 /*
  * tools/serve.mjs — 零依賴本機靜態伺服器（給 npm start 用）
  *
- * `npx serve` 每次都要上網下載套件，離線開發時直接開不到；
- * 這支只用 Node 內建模組，支援 Service Worker（需要 http:// 而非 file://）、
- * 正確 MIME、防止路徑穿越，以及把 /room 之類的乾淨網址 fallback 到 index.html。
- *
- * 用法：
- *   node tools/serve.mjs            # http://0.0.0.0:4173
- *   PORT=8080 node tools/serve.mjs
+ * 版本化來源檔映射到同一組穩定 runtime URL（/index.html、/app.js 等），
+ * 方便本機預覽同 Vercel public/ 建置產物保持一致。
  */
-import { createReadStream, existsSync, statSync } from 'node:fs';
+import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs';
 import { createServer } from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -18,6 +13,16 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = Number(process.env.PORT) || 4173;
 const HOST = process.env.HOST || '0.0.0.0';
+const APP_VERSION = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
+const RELEASE = `v${APP_VERSION}`;
+const INDEX_SOURCE = `index_${RELEASE}.html`;
+const SOURCE_BY_RUNTIME_PATH = new Map([
+  ['/index.html', INDEX_SOURCE],
+  ['/styles.css', `styles_${RELEASE}.css`],
+  ['/app.js', `app_${RELEASE}.js`],
+  ['/sw.js', `sw_${RELEASE}.js`],
+  ['/manifest.webmanifest', `manifest_${RELEASE}.webmanifest`],
+]);
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -42,6 +47,9 @@ const server = createServer((request, response) => {
     return;
   }
 
+  if (pathname === '/') pathname = '/index.html';
+  pathname = SOURCE_BY_RUNTIME_PATH.get(pathname) ? `/${SOURCE_BY_RUNTIME_PATH.get(pathname)}` : pathname;
+
   let filePath = path.join(ROOT, pathname);
   // 阻擋 path traversal（例如 /../../etc/passwd）
   const relative = path.relative(ROOT, filePath);
@@ -51,16 +59,16 @@ const server = createServer((request, response) => {
   }
 
   if (existsSync(filePath) && statSync(filePath).isDirectory()) {
-    filePath = path.join(filePath, 'index.html');
+    filePath = path.join(filePath, INDEX_SOURCE);
   }
   if (!existsSync(filePath) || !statSync(filePath).isFile()) {
-    // cleanUrls：沒有副檔名的路徑（例如 /room）交回 index.html；
+    // cleanUrls：沒有副檔名的路徑（例如 /room）交回版本化首頁；
     // 但 /icons/missing.png 這種就直接 404，免得壞圖靜靜變成 HTML。
     if (path.extname(pathname)) {
       response.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }).end('Not found');
       return;
     }
-    filePath = path.join(ROOT, 'index.html');
+    filePath = path.join(ROOT, INDEX_SOURCE);
   }
 
   const ext = path.extname(filePath).toLowerCase();
