@@ -17,14 +17,35 @@
  * 有任何 FAIL → exit 1。
  */
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const PACKAGE = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+const RELEASE_VERSION = PACKAGE.version;
+const RELEASE_TAG = `v${RELEASE_VERSION}`;
+const RELEASE_FILES = {
+  index: `index_${RELEASE_TAG}.html`,
+  styles: `styles_${RELEASE_TAG}.css`,
+  app: `app_${RELEASE_TAG}.js`,
+  sw: `sw_${RELEASE_TAG}.js`,
+  manifest: `manifest_${RELEASE_TAG}.webmanifest`,
+  gateConfig: `store_gate_config_${RELEASE_TAG}.js`,
+};
+const RUNTIME_SOURCE = new Map([
+  ['index.html', RELEASE_FILES.index],
+  ['styles.css', RELEASE_FILES.styles],
+  ['app.js', RELEASE_FILES.app],
+  ['sw.js', RELEASE_FILES.sw],
+  ['manifest.webmanifest', RELEASE_FILES.manifest],
+]);
+const sourcePath = (rel) => RUNTIME_SOURCE.get(rel) || rel;
+const abs = (rel) => path.join(ROOT, sourcePath(rel));
 const argv = new Set(process.argv.slice(2));
 const JSON_OUT = argv.has('--json');
-const STRICT = argv.has('--strict');
+const STRICT = argv.has('--strict') || argv.has('--strict-syntax');
 
 const results = [];
 const record = (level, id, detail) => results.push({ level, id, detail });
@@ -32,26 +53,42 @@ const pass = (id, detail) => record('PASS', id, detail);
 const warn = (id, detail) => record('WARN', id, detail);
 const fail = (id, detail) => record('FAIL', id, detail);
 
-const abs = (rel) => path.join(ROOT, rel);
 const exists = (rel) => existsSync(abs(rel));
 const read = (rel) => readFileSync(abs(rel), 'utf8');
 const size = (rel) => statSync(abs(rel)).size;
 const kb = (bytes) => `${(bytes / 1024).toFixed(1)} KB`;
 
 /* ---------- 1. 版號一致（V） ---------- */
-const pkg = JSON.parse(read('package.json'));
+const pkg = PACKAGE;
 const html = read('index.html');
 const app = read('app.js');
 const sw = read('sw.js');
+const styles = read('styles.css');
+const manifest = JSON.parse(read('manifest.webmanifest'));
+const gateConfig = read(RELEASE_FILES.gateConfig);
 
 const pick = (text, re) => (text.match(re) || [])[1];
+const filenameVersion = (file, ext) => pick(path.basename(file), new RegExp(`_v([0-9.]+)\\.${ext}$`));
 const versions = {
   'package.json': pkg.version,
+  'index.html 檔名': filenameVersion(RELEASE_FILES.index, 'html'),
+  'index.html header': pick(html, /<!-- 出門玩 · Pocket Play · v([0-9.]+) · © SCOUT SYSTEM -->/),
+  'index.html title': pick(html, /<title>[^<]*v([0-9.]+)[^<]*</),
   'index.html meta': pick(html, /<meta name="app-version" content="([^"]+)"/),
-  'index.html 頁尾': pick(html, /©\s*\d{4}\s*Scout System\s*·\s*v([0-9.]+)/),
+  'index.html 頁尾': pick(html, /Scout System · v([0-9.]+)/),
+  'styles.css 檔名': filenameVersion(RELEASE_FILES.styles, 'css'),
+  'styles.css header': pick(styles, /Pocket Play styles · v([0-9.]+) · © SCOUT SYSTEM/),
+  'manifest 檔名': filenameVersion(RELEASE_FILES.manifest, 'webmanifest'),
+  'manifest 內文': manifest['x-app-version'],
+  'app.js 檔名': filenameVersion(RELEASE_FILES.app, 'js'),
+  'app.js header': pick(app, /app shell · 版本：v([0-9.]+)/),
   'app.js APP_VERSION': pick(app, /const APP_VERSION = '([^']+)'/),
+  'sw.js 檔名': filenameVersion(RELEASE_FILES.sw, 'js'),
+  'sw.js header': pick(sw, /Service Worker · 版本：v([0-9.]+)/),
   'sw.js APP_VERSION': pick(sw, /const APP_VERSION = '([^']+)'/),
   'sw.js 快取名': sw.includes('const CACHE_NAME = `pocket-play-v${APP_VERSION}`') ? pick(sw, /const APP_VERSION = '([^']+)'/) : null,
+  'gate config 檔名': filenameVersion(RELEASE_FILES.gateConfig, 'js'),
+  'gate config version': pick(gateConfig, /version: 'v([0-9.]+)'/),
 };
 const unique = new Set(Object.values(versions));
 const missing = Object.entries(versions).filter(([, v]) => !v).map(([k]) => k);
@@ -60,7 +97,7 @@ if (missing.length) {
 } else if (unique.size > 1) {
   fail('version', `版號不一致：${Object.entries(versions).map(([k, v]) => `${k}=${v}`).join(' / ')}`);
 } else {
-  pass('version', `版號一致：v${pkg.version}（package.json／index.html meta＋頁尾／app.js／sw.js）`);
+  pass('version', `版號一致：v${pkg.version}（版本化檔名／HTML meta、title、footer／CSS、manifest／APP_VERSION／SW cache）`);
 }
 
 /* ---------- 2. 傳統 script 不可有 top-level import/export ---------- */
@@ -82,7 +119,7 @@ if (bareImport) {
 }
 
 /* ---------- 3. 語法檢查 ---------- */
-const syntaxTargets = ['app.js', 'sw.js', 'tools/verify.mjs', 'tools/build-static.mjs', 'tools/serve.mjs'];
+const syntaxTargets = ['app.js', 'sw.js', RELEASE_FILES.gateConfig, 'store_gate_v1.0.js', 'tools/verify.mjs', 'tools/build-static.mjs', 'tools/serve.mjs'];
 if (STRICT) syntaxTargets.push('vendor/qrcode.js', 'vendor/peerjs.min.js');
 const broken = [];
 for (const file of syntaxTargets) {
@@ -109,7 +146,6 @@ for (const match of html.matchAll(/(?:src|href)="([^"]+)"/g)) {
   if (!exists(clean)) missingAssets.add(`index.html → ${url}`);
 }
 
-const manifest = JSON.parse(read('manifest.webmanifest'));
 for (const icon of manifest.icons || []) {
   const clean = String(icon.src).replace(/^\.\//, '');
   if (!exists(clean)) missingAssets.add(`manifest → ${icon.src}`);
@@ -230,9 +266,101 @@ if (vercel) {
   else pass('headers', 'vercel.json 有 CSP／nosniff／Referrer／Permissions 標頭，只部署 public/');
 }
 
+/* ---------- 8b. Store Gate / SG18 靜態預檢與純邏輯模擬 ---------- */
+const gateProblems = [];
+const gateTemplate = read('store_gate_v1.0.js');
+const gateHash = createHash('sha256').update(gateTemplate).digest('hex');
+const expectedGateHash = '45de189d68e9fbf64d560a4306987d1a03cd03f03e56dd24222a4343011e3d5b';
+if (gateHash !== expectedGateHash) gateProblems.push('store_gate_v1.0.js 與真理倉模板雜湊不同（必須原封不動）');
+
+const charsetAt = html.indexOf('<meta charset="UTF-8"');
+const gateScriptAt = html.indexOf('<script src="./store_gate_v1.0.js"></script>');
+const configScriptAt = html.indexOf(`<script src="./${RELEASE_FILES.gateConfig}"></script>`);
+const titleAt = html.indexOf('<title>');
+if (!(charsetAt >= 0 && charsetAt < gateScriptAt && gateScriptAt < configScriptAt && configScriptAt < titleAt)) {
+  gateProblems.push('閘門／設定 script 順序不正確（需 charset 之後、title 之前）');
+}
+
+const gateConfigExpectations = [
+  ["appKey: 'minigame'", 'appKey'],
+  ["mode: 'entry-gate'", 'mode'],
+  ["portalIds: ['appstore']", 'portalIds'],
+  ["silentPortalIds: ['library']", 'silentPortalIds'],
+  ['allowStandalone: true', 'allowStandalone'],
+  ['autoRedirectSeconds: 0', 'autoRedirectSeconds'],
+  ["window.ScoutStoreGate.getAppStoreUrl('minigame')", 'SG18 官方 URL helper／slug'],
+];
+for (const [snippet, label] of gateConfigExpectations) {
+  if (!gateConfig.includes(snippet)) gateProblems.push(`Gate 設定缺少正確的 ${label}`);
+}
+if (/https?:\/\//i.test(gateConfig)) gateProblems.push('SG18 設定檔寫死網址');
+if (/supportNudge|localStorage|bump_hearts|bump_stars|supabase/i.test(gateConfig)) {
+  gateProblems.push('SG18 設定不應啟用浮窗、直連資料庫或新增持久儲存');
+}
+
+const supportAnchor = html.match(/<a\b(?=[^>]*\bid="storeSupportTop")(?=[^>]*\bclass="support-btn")(?=[^>]*\btarget="_blank")(?=[^>]*\brel="noopener")(?=[^>]*\bhidden\b)[^>]*>/i);
+if (!supportAnchor || !/aria-label=/.test(supportAnchor[0]) || !/title=/.test(supportAnchor[0])) {
+  gateProblems.push('SG18 頂欄連結需初始 hidden、target=_blank、rel=noopener、aria-label 與 title');
+}
+if (/id="storeSupportTop"[^>]*\bhref=/i.test(html)) gateProblems.push('SG18 不可在 HTML 寫死 href');
+if (!/\[hidden\]\s*\{\s*display:\s*none\s*!important/i.test(styles)) gateProblems.push('CSS 缺少明確 [hidden]{display:none}');
+if (!/\.support-btn\s*\{[^}]*min-height:\s*40px/s.test(styles)) gateProblems.push('SG18 觸控目標未達 40px');
+if (!styles.includes('.support-btn:focus-visible')) gateProblems.push('SG18 缺少 focus-visible 樣式');
+if (!/@media\s+print[\s\S]*?#storeSupportTop\s*\{\s*display:\s*none/i.test(styles)) gateProblems.push('列印樣式未隱藏 SG18 掣');
+const inlineExecutableScripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)]
+  .filter(([, attrs, body]) => !/\bsrc\s*=/.test(attrs)
+    && !/\btype\s*=\s*["']application\/ld\+json["']/i.test(attrs)
+    && body.trim());
+if (inlineExecutableScripts.length) gateProblems.push('嚴格 CSP 下不可新增 inline JavaScript');
+
+try {
+  await import(new URL('../store_gate_v1.0.js', import.meta.url));
+  const gate = globalThis.ScoutStoreGate;
+  const options = {
+    appKey: 'minigame',
+    mode: 'entry-gate',
+    portalIds: ['appstore'],
+    silentPortalIds: ['library'],
+    allowStandalone: true,
+    autoRedirectSeconds: 0,
+  };
+  const storePortal = gate.getPortal('appstore');
+  const libraryPortal = gate.getPortal('library');
+  const testOrigin = 'https://pocket-play-test.invalid';
+  const evaluate = (referrer, standalone = false) => gate.evaluateStoreGate(options, {
+    inIframe: false,
+    standalone,
+    hasSessionPass: false,
+    referrer,
+    selfOrigin: testOrigin,
+  });
+  const appStoreEntry = evaluate(`${storePortal.origin}/`);
+  const libraryEntry = evaluate(`${libraryPortal.origin}/`);
+  const directEntry = evaluate('');
+  const standaloneEntry = evaluate('', true);
+  const actions = gate.normalizePortals(options).filter((portal) => !portal.silent);
+  const generatedStoreUrl = new URL(gate.getAppStoreUrl('minigame'));
+  const registeredStoreUrl = new URL(storePortal.url);
+  if (!appStoreEntry.allowed || appStoreEntry.matchedPortalId !== 'appstore') gateProblems.push('模擬 APP STORE Referer 未放行／matchedPortalId 錯誤');
+  if (!libraryEntry.allowed || libraryEntry.matchedPortalId !== 'library') gateProblems.push('模擬圖書館 Referer 未靜默放行／matchedPortalId 錯誤');
+  if (directEntry.allowed || directEntry.reason !== 'missing-whitelist-entry') gateProblems.push('模擬直打網址應顯示白名單卡');
+  if (!standaloneEntry.allowed || standaloneEntry.reason !== 'standalone-pwa') gateProblems.push('模擬 standalone PWA 未放行');
+  if (actions.length !== 1 || actions[0].id !== 'appstore') gateProblems.push('直打攔截卡不是恰好一粒 APP STORE 掣');
+  if (!libraryPortal || !gate.normalizePortals(options).some((portal) => portal.id === 'library' && portal.silent)) gateProblems.push('library 未被加入靜默放行來源');
+  if (generatedStoreUrl.origin !== registeredStoreUrl.origin || generatedStoreUrl.searchParams.get('app') !== 'minigame') {
+    gateProblems.push('SG18 helper 未產生指向正確 slug 的主站詳情 URL');
+  }
+} catch (error) {
+  gateProblems.push(`Store Gate 純邏輯模擬失敗：${error.message}`);
+}
+
+if (gateProblems.length) fail('whitelist', gateProblems.join('；'));
+else pass('whitelist', '模板原封不動；CSP/head/config/SG18/CSS 檢查通過；APP STORE、library、直打、standalone 模擬正確');
+
 /* ---------- 9. 體積與死重（S） ---------- */
 const runtimeFiles = [
   'index.html', 'styles.css', 'app.js', 'sw.js', 'manifest.webmanifest',
+  'store_gate_v1.0.js', RELEASE_FILES.gateConfig,
   ...Object.keys(iconSpec), 'icons/favicon.ico',
   'vendor/qrcode.js', 'vendor/peerjs.min.js',
 ];
@@ -267,7 +395,7 @@ const secretPatterns = [
   [/-----BEGIN [A-Z ]*PRIVATE KEY-----/, 'private key'],
   [/AIza[0-9A-Za-z_-]{30,}/, 'Google API key'],
 ];
-const scanned = ['app.js', 'sw.js', 'index.html', 'vercel.json', 'tools/verify.mjs', 'tools/serve.mjs', 'tools/build-static.mjs'];
+const scanned = ['app.js', 'sw.js', 'index.html', 'store_gate_v1.0.js', RELEASE_FILES.gateConfig, 'vercel.json', 'tools/verify.mjs', 'tools/serve.mjs', 'tools/build-static.mjs'];
 const leaked = [];
 for (const file of scanned) {
   if (!exists(file)) continue;

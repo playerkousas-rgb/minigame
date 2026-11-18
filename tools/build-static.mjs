@@ -1,12 +1,10 @@
 #!/usr/bin/env node
 /*
- * tools/build-static.mjs — 把真正要上線的檔案整理到 public/（零依賴）
+ * tools/build-static.mjs — 把版本化來源檔整理到 Vercel public/（零依賴）
  *
- * 為什麼要有這一步：
- *  - Vercel 的 outputDirectory 設為 public，部署只會包含執行期檔案，
- *    不會把 package.json、tools/、README 之類的東西一齊派街。
+ *  - public/ 保留 index.html、app.js 等穩定執行期路徑；版本化檔名是 repo 的唯一來源。
+ *  - Gate 模板原封不動複製到 publish root；設定檔亦一併部署。
  *  - 每次建置先清空 public/，避免舊檔殘留（S5 死重零容忍）。
- *  - 清單寫死在這裡，漏檔會即時報錯，不會靜靜部署一個壞掉的 App。
  */
 import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs';
 import path from 'node:path';
@@ -15,7 +13,15 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = path.join(ROOT, 'public');
 
-const FILES = ['index.html', 'styles.css', 'app.js', 'sw.js', 'manifest.webmanifest'];
+const FILES = [
+  { source: 'index_v1.3.0.html', output: 'index.html' },
+  { source: 'styles_v1.3.0.css', output: 'styles.css' },
+  { source: 'app_v1.3.0.js', output: 'app.js' },
+  { source: 'sw_v1.3.0.js', output: 'sw.js' },
+  { source: 'manifest_v1.3.0.webmanifest', output: 'manifest.webmanifest' },
+  { source: 'store_gate_v1.0.js', output: 'store_gate_v1.0.js' },
+  { source: 'store_gate_config_v1.3.0.js', output: 'store_gate_config_v1.3.0.js' },
+];
 const DIRS = ['icons', 'vendor'];
 
 const walk = (dir, onFile) => {
@@ -26,7 +32,10 @@ const walk = (dir, onFile) => {
   }
 };
 
-const missing = [...FILES, ...DIRS].filter((item) => !existsSync(path.join(ROOT, item)));
+const missing = [
+  ...FILES.filter(({ source }) => !existsSync(path.join(ROOT, source))).map(({ source }) => source),
+  ...DIRS.filter((dir) => !existsSync(path.join(ROOT, dir))),
+];
 if (missing.length) {
   console.error(`✗ 缺少必需檔案：${missing.join('、')}`);
   process.exit(1);
@@ -36,9 +45,9 @@ rmSync(OUT, { recursive: true, force: true });
 mkdirSync(OUT, { recursive: true });
 
 let total = 0;
-for (const file of FILES) {
-  cpSync(path.join(ROOT, file), path.join(OUT, file));
-  total += statSync(path.join(ROOT, file)).size;
+for (const { source, output } of FILES) {
+  cpSync(path.join(ROOT, source), path.join(OUT, output));
+  total += statSync(path.join(ROOT, source)).size;
 }
 for (const dir of DIRS) {
   cpSync(path.join(ROOT, dir), path.join(OUT, dir), { recursive: true });

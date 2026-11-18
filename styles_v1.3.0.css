@@ -1,4 +1,8 @@
+/* 出門玩 · Pocket Play styles · v1.3.0 · © SCOUT SYSTEM */
 
+[hidden] {
+  display: none !important;
+}
 
 :root {
   --ink: #0b0c10;
@@ -128,6 +132,40 @@ textarea:focus-visible,
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.support-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0 11px;
+  color: var(--paper-muted);
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+  text-decoration: none;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.035);
+  transition: color 180ms ease, border-color 180ms ease, background 180ms ease;
+}
+
+.support-btn:hover {
+  color: var(--lime);
+  border-color: rgba(216, 255, 95, 0.5);
+  background: rgba(216, 255, 95, 0.06);
+}
+
+.support-btn:focus-visible {
+  outline: 3px solid var(--lime);
+  outline-offset: 3px;
+}
+
+.support-btn[hidden] {
+  display: none !important;
 }
 
 .voice-language-control {
@@ -4769,6 +4807,30 @@ button.agent-word:not(:disabled):hover {
 
   .topbar {
     min-height: 43px;
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  .top-actions {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+  }
+
+  .status-badge {
+    margin-right: auto;
+  }
+
+  .support-btn {
+    width: 40px;
+    min-width: 40px;
+    padding: 0;
+    gap: 0;
+  }
+
+  .support-btn-label {
+    display: none;
   }
 
   .brand-mark {
@@ -5887,5 +5949,11 @@ button.agent-word:not(:disabled):hover {
 
   .app-banner-action {
     padding: 8px 12px;
+  }
+}
+
+@media print {
+  #storeSupportTop {
+    display: none !important;
   }
 }

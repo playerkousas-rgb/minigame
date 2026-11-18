@@ -1,8 +1,18 @@
 # 更新紀錄
 
-版本號出現於四個地方，`npm run check` 會自動對照，改版時一齊改：
+版本化來源檔名與內文版號、`package.json`、HTML metadata/footer、CSS／manifest、`APP_VERSION`／SW cache、Gate 設定及 CHANGELOG 要同步；`npm run check` 會自動對照。`tools/build-static.mjs` 將版本化來源映射到穩定 runtime URL。
 
-`package.json` → `index.html`（`meta[name=app-version]` ＋ 頁尾）→ `app.js`（`APP_VERSION`）→ `sw.js`（`APP_VERSION`）
+## v1.3.0 — 2026-11-18
+
+### 新增
+- 加入真理倉 `store_gate_v1.0.js`（原封不動）及 A 組 entry-gate：只顯示 APP STORE 按鈕，圖書館靜默放行，允許 standalone PWA，關閉自動跳轉與 `supportNudge`。
+- 頂欄加入 SG18「讚好／收藏」連結；以 `ScoutStoreGate.getAppStoreUrl('minigame')` 產生詳情卡網址，未載入 helper 時保持隱藏。
+- Gate 設定採同源外部 script，維持嚴格 CSP，無 inline JavaScript、Supabase 直連或新增 `localStorage` key。
+- `npm run check` 擴充版本化檔名／內文、Gate 模板完整性、CSP/head、SG18、列印／觸控／focus、APP STORE／library／直打／standalone 純邏輯模擬；`--strict-syntax` 現會如預期檢查 vendor。
+
+### 修正
+- 發佈根目錄維持 `public/`；建置與本機伺服器明確映射版本化來源檔至既有 runtime 路徑，Service Worker 離線殼包含 Gate 兩個 script。
+- 新版 Service Worker cache 名稱改為 `pocket-play-v1.3.0`，更新時清除舊 cache。
 
 ## v1.2.0 — 2026-11-12
 
